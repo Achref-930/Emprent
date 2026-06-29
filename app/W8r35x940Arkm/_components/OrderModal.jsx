@@ -123,15 +123,30 @@ export default function OrderModal({ order, onClose }) {
           </div>
 
           <div
-            className="flex items-center justify-between pt-4"
+            className="flex flex-col gap-1.5 pt-4"
             style={{ borderTop: "1px solid #E5E5E5" }}
           >
-            <span className="text-sm" style={{ color: "#737373" }}>
-              Total
-            </span>
-            <span className="font-semibold text-lg">
-              {formatDA(order.totalPrice)}
-            </span>
+            <div className="flex items-center justify-between text-sm">
+              <span style={{ color: "#737373" }}>Subtotal</span>
+              <span className="font-medium">
+                {formatDA(order.subtotal ?? (order.totalPrice - (order.shippingFee ?? 0)))}
+              </span>
+            </div>
+            <div className="flex items-center justify-between text-sm">
+              <span style={{ color: "#737373" }}>Shipping Fee</span>
+              <span className="font-medium">
+                + {formatDA(order.shippingFee ?? 0)}
+              </span>
+            </div>
+            <div
+              className="flex items-center justify-between pt-3 mt-1.5"
+              style={{ borderTop: "1px solid #E5E5E5" }}
+            >
+              <span className="font-semibold text-sm">Total</span>
+              <span className="font-bold text-lg text-black">
+                {formatDA(order.totalPrice)}
+              </span>
+            </div>
           </div>
 
           {order.notes && (

@@ -109,8 +109,13 @@ function DesktopTable({ orders, onUpdateOrder, onExpand }) {
                 ))}
               </div>
             </td>
-            <td className="px-4 py-3 whitespace-nowrap font-medium">
-              {formatDA(order.totalPrice)}
+            <td className="px-4 py-3 whitespace-nowrap">
+              <div className="flex flex-col text-left">
+                <span className="font-semibold text-gray-900">{formatDA(order.totalPrice)}</span>
+                <span className="text-[10px] text-gray-500 mt-0.5 whitespace-nowrap">
+                  {formatDA(order.subtotal ?? (order.totalPrice - (order.shippingFee ?? 0)))} + {formatDA(order.shippingFee ?? 0)}
+                </span>
+              </div>
             </td>
             <td className="px-4 py-3">
               <span
@@ -195,11 +200,14 @@ function CompactRow({ order, isLast, onUpdateOrder, onExpand }) {
         </div>
 
         <div className="flex flex-col items-end gap-1 shrink-0">
-          <span className="font-medium text-sm whitespace-nowrap">
+          <span className="font-semibold text-sm whitespace-nowrap">
             {formatDA(order.totalPrice)}
           </span>
+          <span className="text-[10px] text-gray-500 whitespace-nowrap font-normal">
+            {formatDA(order.subtotal ?? (order.totalPrice - (order.shippingFee ?? 0)))} + {formatDA(order.shippingFee ?? 0)}
+          </span>
           <span
-            className={`inline-block px-2.5 py-1 rounded-full text-xs font-medium ${statusBadgeClass(
+            className={`inline-block px-2 py-0.5 rounded-full text-[10px] font-medium ${statusBadgeClass(
               order.status,
             )}`}
           >
@@ -214,8 +222,9 @@ function CompactRow({ order, isLast, onUpdateOrder, onExpand }) {
           <span className="text-right flex-1">{locationLabel || "—"}</span>
         </div>
 
-        <div className="flex items-center justify-between gap-3 border-t border-gray-200 pt-3">
+        <div className="flex items-start justify-between gap-3 border-t border-gray-200 pt-3">
           <div className="flex flex-col gap-0.5 flex-1 min-w-0">
+            <span className="font-semibold text-[10px] text-gray-400 uppercase tracking-wider mb-1">Products</span>
             {(order.products || []).map((p, i) => (
               <span key={i}>
                 {p.name}
@@ -236,6 +245,21 @@ function CompactRow({ order, isLast, onUpdateOrder, onExpand }) {
               onUpdateOrder(order._id, { status, notes: order.notes })
             }
           />
+        </div>
+
+        <div className="border-t border-gray-200 pt-3 flex flex-col gap-1.5 text-xs">
+          <div className="flex justify-between text-gray-500">
+            <span>Subtotal:</span>
+            <span>{formatDA(order.subtotal ?? (order.totalPrice - (order.shippingFee ?? 0)))}</span>
+          </div>
+          <div className="flex justify-between text-gray-500">
+            <span>Shipping Fee:</span>
+            <span>+ {formatDA(order.shippingFee ?? 0)}</span>
+          </div>
+          <div className="flex justify-between font-semibold text-gray-900 border-t border-gray-200 pt-1.5 mt-0.5 text-sm">
+            <span>Total:</span>
+            <span>{formatDA(order.totalPrice)}</span>
+          </div>
         </div>
 
         <div className="border-t border-gray-200 pt-3">
