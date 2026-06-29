@@ -59,13 +59,17 @@ function Header({ cartCount }) {
           {cartCount > 0 && (
             <span
               aria-label={`${cartCount} item${cartCount > 1 ? "s" : ""} in order`}
-              style={{ animation: "badgePop 0.3s cubic-bezier(0.34,1.56,0.64,1) both" }}
+              style={{
+                animation: "badgePop 0.3s cubic-bezier(0.34,1.56,0.64,1) both",
+                background: "#FF3B30",
+                boxShadow: "0 0 0 2.5px #fff, 0 2px 6px rgba(255,59,48,0.55)",
+              }}
               className="
-                absolute -top-2 -right-2
-                min-w-[18px] h-[18px] px-[3px] rounded-full
-                bg-red-500 shadow-[0_0_0_2px_white]
+                absolute -top-[9px] -right-[9px]
+                min-w-[20px] h-[20px] px-[4px] rounded-full
                 flex items-center justify-center
-                text-[10px] font-black text-white leading-none tabular-nums
+                text-[11px] font-black text-white leading-none tabular-nums
+                pointer-events-none select-none
               "
             >
               {cartCount > 99 ? "99+" : cartCount}
