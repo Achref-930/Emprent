@@ -46,11 +46,14 @@ export default function CheckoutForm({ cart, onRemoveItem }) {
   const [downloading, setDownloading] = useState(false);
   const [downloadError, setDownloadError] = useState("");
 
-  // Bring the receipt into view the moment the order succeeds, instead of
-  // leaving it wherever the form happened to be on the page.
+  // Bring the receipt into view the moment the order succeeds, accounting
+  // for the sticky header height so the top of the receipt isn't cut off.
   useEffect(() => {
     if (status === "success" && receiptRef.current) {
-      receiptRef.current.scrollIntoView({ behavior: "smooth", block: "start" });
+      const yOffset = -76; // Sticky header (56px) + extra spacing (20px)
+      const elementTop = receiptRef.current.getBoundingClientRect().top;
+      const absoluteTop = elementTop + window.pageYOffset;
+      window.scrollTo({ top: absoluteTop + yOffset, behavior: "smooth" });
     }
   }, [status]);
 
@@ -168,16 +171,18 @@ export default function CheckoutForm({ cart, onRemoveItem }) {
             EMPRNTE
           </span>
 
-          <div className="border-t border-gray-700 mt-6 pt-9">
-            <CheckCircle
-              size={44}
-              strokeWidth={1.2}
-              className="mx-auto mb-7"
-              aria-hidden="true"
-            />
-            <h2 className="text-[22px] font-black tracking-[-0.02em] uppercase mb-4">
-              Order Confirmed!
-            </h2>
+          <div className="border-t border-gray-700 mt-6 pt-6">
+            <div className="flex items-center justify-center gap-2.5 mb-4">
+              <CheckCircle
+                size={22}
+                strokeWidth={2.5}
+                className="text-white shrink-0"
+                aria-hidden="true"
+              />
+              <h2 className="text-[20px] font-black tracking-[-0.02em] uppercase">
+                Order Confirmed!
+              </h2>
+            </div>
             <p className="text-[14px] text-gray-200 leading-[1.75] mb-8">
               Thank you, <strong className="text-white">{form.name}</strong>.
               Your order has been received. We will call{" "}
