@@ -98,11 +98,15 @@ export function printOrdersToPDF(orders, filterLabel = "All") {
       const badge = `<span style="background:${sc.bg};color:${sc.text};border-radius:99px;padding:2px 10px;font-size:11px;font-weight:600;white-space:nowrap">${capitalize(order.status)}</span>`;
 
       const rowBg = idx % 2 === 0 ? "#ffffff" : "#f9fafb";
+      const delivType = order.deliveryType === "domicile" ? "🏠 Domicile" : "📦 Bureau";
       return `<tr style="background:${rowBg}">
         <td>${formatDateTime(order.createdAt)}</td>
         <td>${order.customerName}</td>
         <td>${order.phone}</td>
-        <td>${order.wilaya}${order.commune ? ` / ${order.commune}` : ""}</td>
+        <td>
+          <div>${order.wilaya}${order.commune ? ` / ${order.commune}` : ""}</div>
+          <div style="font-size:10px;color:#6b7280;margin-top:2px">${delivType}</div>
+        </td>
         <td>${products}</td>
         <td style="text-align:right;white-space:nowrap">${formatDA(order.totalPrice)}</td>
         <td style="text-align:center">${badge}</td>

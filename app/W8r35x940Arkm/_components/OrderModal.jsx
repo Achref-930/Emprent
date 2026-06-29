@@ -97,6 +97,13 @@ export default function OrderModal({ order, onClose }) {
             <span className="font-medium">{order.commune || "—"}</span>
           </div>
 
+          <div className="flex items-center justify-between text-sm">
+            <span style={{ color: "#737373" }}>Delivery Type</span>
+            <span className="font-medium">
+              {order.deliveryType === "domicile" ? "🏠 Domicile" : "📦 Bureau"}
+            </span>
+          </div>
+
           <div className="pt-4" style={{ borderTop: "1px solid #E5E5E5" }}>
             <p className="text-sm mb-2" style={{ color: "#737373" }}>
               Products

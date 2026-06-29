@@ -92,7 +92,14 @@ function DesktopTable({ orders, onUpdateOrder, onExpand }) {
               <CopyablePhone phone={order.phone} />
             </td>
             <td className="px-4 py-3">{order.wilaya}</td>
-            <td className="px-4 py-3">{order.commune}</td>
+            <td className="px-4 py-3">
+              <div className="flex flex-col">
+                <span>{order.commune}</span>
+                <span className="text-[10px] text-gray-500 mt-0.5 font-medium uppercase tracking-wider">
+                  {order.deliveryType === "domicile" ? "🏠 Domicile" : "📦 Bureau"}
+                </span>
+              </div>
+            </td>
             <td className="px-4 py-3">
               <div className="flex flex-col gap-0.5">
                 {(order.products || []).map((p, i) => (
@@ -181,9 +188,8 @@ function ExpandIcon() {
 // Mobile compact row — now shows the order's stable order number in the
 // collapsed summary, alongside the existing expand button in the revealed content.
 function CompactRow({ order, isLast, onUpdateOrder, onExpand }) {
-  const locationLabel = [order.wilaya, order.commune]
-    .filter(Boolean)
-    .join(" / ");
+  const deliveryLabel = order.deliveryType ? `(${order.deliveryType === "domicile" ? "Domicile" : "Bureau"})` : "";
+  const locationLabel = `${[order.wilaya, order.commune].filter(Boolean).join(" / ")} ${deliveryLabel}`.trim();
 
   return (
     <details className={`group ${isLast ? "" : "border-b border-gray-200"}`}>
