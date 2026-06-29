@@ -1,0 +1,60 @@
+# Dependencies
+/node_modules/
+/.pnp
+.pnp.*
+
+# Next.js build, output, and dev logs
+/.next/
+/out/
+/build/
+.next/dev/logs/
+
+# Testing
+/coverage/
+/test/
+
+# Production / Distribution
+/dist/
+
+# Debug logs
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+.pnpm-debug.log*
+
+# Local environment files (DO NOT COMMIT SECRETS)
+/.env*
+!/.env.example
+
+# Local notes / handoff docs
+/handoff.md
+/mongodb-srv-dns-issue.md
+
+# Vercel
+.vercel
+
+# IDEs & Editors (VS Code, IntelliJ, etc.)
+.vscode/
+.idea/
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+*.sw?
+.history/
+
+# System Files (macOS, Windows)
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# Archives & Compressed Files
+*.zip
+*.tar.gz
+*.rar
+*.7z
+
+# TypeScript
+*.tsbuildinfo
+next-env.d.ts
