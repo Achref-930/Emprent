@@ -5,7 +5,7 @@
  * COD-only checkout form with integrated shipping selector.
  *
  * Props:
- *   cart         → Array<{ cartItemId, productId, name, colorLabel, size, price }>
+ *   cart         → Array<{ cartItemId, productId, name, size, price }>
  *   onRemoveItem → (cartItemId: string) => void
  */
 
@@ -131,10 +131,9 @@ export default function CheckoutForm({ cart, onRemoveItem }) {
           commune: shipping.commune,
           deliveryType: shipping.deliveryType,
           shippingFee: shipping.fee,
-          items: cart.map(({ productId, name, colorLabel, size, price }) => ({
+          items: cart.map(({ productId, name, size, price }) => ({
             productId,
             name,
-            color: colorLabel,
             size,
             price,
           })),
@@ -210,7 +209,7 @@ export default function CheckoutForm({ cart, onRemoveItem }) {
                     {item.name}
                   </p>
                   <p className="text-[11px] text-gray-300 mt-0.5">
-                    {item.colorLabel} · {item.size}
+                    Size {item.size}
                   </p>
                 </div>
                 <p className="text-[12px] font-black text-white shrink-0 ml-4">
@@ -305,7 +304,7 @@ export default function CheckoutForm({ cart, onRemoveItem }) {
                       {item.name}
                     </p>
                     <p className="text-[11px] text-gray-400 mt-0.5">
-                      {item.colorLabel} · Size {item.size}
+                      Size {item.size}
                     </p>
                   </div>
                   <div className="flex items-center gap-4 ml-4 shrink-0">
@@ -316,7 +315,7 @@ export default function CheckoutForm({ cart, onRemoveItem }) {
                       <button
                         type="button"
                         onClick={() => onRemoveItem(item.cartItemId)}
-                        aria-label={`Remove ${item.name} (${item.colorLabel}, ${item.size}) from order`}
+                        aria-label={`Remove ${item.name} (size ${item.size}) from order`}
                         className="text-gray-300 hover:text-black transition-colors"
                       >
                         <Trash2 size={14} strokeWidth={1.5} />

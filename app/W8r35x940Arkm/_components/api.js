@@ -77,6 +77,27 @@ export async function updateOrderRequest(token, orderId, { status, notes }) {
   return { ok: res.ok, status: res.status, data };
 }
 
+export async function fetchProductsRequest(token) {
+  const res = await fetch("/api/admin-products", {
+    headers: { Authorization: `Bearer ${token}` },
+  });
+  const data = await res.json();
+  return { ok: res.ok, status: res.status, data };
+}
+
+export async function updateProductRequest(token, productId, updates) {
+  const res = await fetch("/api/admin-products", {
+    method: "PATCH",
+    headers: {
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${token}`,
+    },
+    body: JSON.stringify({ productId, ...updates }),
+  });
+  const data = await res.json();
+  return { ok: res.ok, status: res.status, data };
+}
+
 function delay(ms) {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }

@@ -1,16 +1,21 @@
 "use client";
 
 import { useState, useRef, useCallback } from "react";
-import { Package, Check, Plus } from "lucide-react";
+import { Package, Check, Plus, Flame } from "lucide-react";
 import Image from "next/image";
-import ColorSelector from "./ColorSelector";
 import SizeSelector from "./SizeSelector";
-import { formatPrice, isInStock } from "../../lib/products";
+import {
+  formatPrice,
+  isInStock,
+  effectivePrice,
+  discountPercent,
+  totalStock,
+} from "../../lib/products";
 
 export default function ProductCard({ product, onAddToCart }) {
-  const colorKeys = Object.keys(product.variants);
+  const images = product.images?.length ? product.images : [null];
 
-  const [selectedColor, setSelectedColor] = useState(colorKeys[0]);
+  const [imageIndex, setImageIndex] = useState(0);
   const [selectedSize, setSelectedSize] = useState(null);
   const [sizeError, setSizeError] = useState(false);
   const [added, setAdded] = useState(false);
@@ -21,26 +26,13 @@ export default function ProductCard({ product, onAddToCart }) {
   const dragStartTime = useRef(null);
   const trackRef = useRef(null);
 
-  const currentIndex = colorKeys.indexOf(selectedColor);
-
-  const handleColorChange = useCallback(
-    (colorKey) => {
-      setSelectedColor(colorKey);
-      setDragOffset(0);
-      if (selectedSize && !isInStock(product, colorKey, selectedSize)) {
-        setSelectedSize(null);
-      }
-      setAdded(false);
-    },
-    [selectedSize, product],
-  );
-
   const snapToIndex = useCallback(
     (index) => {
-      const clamped = Math.max(0, Math.min(colorKeys.length - 1, index));
-      handleColorChange(colorKeys[clamped]);
+      const clamped = Math.max(0, Math.min(images.length - 1, index));
+      setImageIndex(clamped);
+      setDragOffset(0);
     },
-    [colorKeys, handleColorChange],
+    [images.length],
   );
 
   /* ── Touch ── */
@@ -53,8 +45,8 @@ export default function ProductCard({ product, onAddToCart }) {
   const onTouchMove = (e) => {
     if (dragStartX.current === null) return;
     const delta = e.touches[0].clientX - dragStartX.current;
-    const atStart = currentIndex === 0 && delta > 0;
-    const atEnd = currentIndex === colorKeys.length - 1 && delta < 0;
+    const atStart = imageIndex === 0 && delta > 0;
+    const atEnd = imageIndex === images.length - 1 && delta < 0;
     setDragOffset(atStart || atEnd ? delta * 0.2 : delta);
   };
 
@@ -70,7 +62,7 @@ export default function ProductCard({ product, onAddToCart }) {
     const isFlick = velocity > 0.3;
     const isDrag = Math.abs(delta) > width * 0.35;
     if ((isFlick || isDrag) && Math.abs(delta) > 10) {
-      snapToIndex(delta < 0 ? currentIndex + 1 : currentIndex - 1);
+      snapToIndex(delta < 0 ? imageIndex + 1 : imageIndex - 1);
     }
   };
 
@@ -84,8 +76,8 @@ export default function ProductCard({ product, onAddToCart }) {
   const onMouseMove = (e) => {
     if (!isDragging || dragStartX.current === null) return;
     const delta = e.clientX - dragStartX.current;
-    const atStart = currentIndex === 0 && delta > 0;
-    const atEnd = currentIndex === colorKeys.length - 1 && delta < 0;
+    const atStart = imageIndex === 0 && delta > 0;
+    const atEnd = imageIndex === images.length - 1 && delta < 0;
     setDragOffset(atStart || atEnd ? delta * 0.2 : delta);
   };
 
@@ -101,7 +93,7 @@ export default function ProductCard({ product, onAddToCart }) {
     const isFlick = velocity > 0.3;
     const isDrag = Math.abs(delta) > width * 0.35;
     if ((isFlick || isDrag) && Math.abs(delta) > 10) {
-      snapToIndex(delta < 0 ? currentIndex + 1 : currentIndex - 1);
+      snapToIndex(delta < 0 ? imageIndex + 1 : imageIndex - 1);
     }
   };
 
@@ -129,21 +121,23 @@ export default function ProductCard({ product, onAddToCart }) {
     setAdded(true);
     onAddToCart({
       cartItemId: crypto.randomUUID(),
-      productId: product.id,
+      productId: product.productId,
       name: product.name,
-      color: selectedColor,
-      colorLabel: product.variants[selectedColor].label,
       size: selectedSize,
-      price: product.price,
+      price: effectivePrice(product),
     });
     setTimeout(() => setAdded(false), 10000);
   };
 
-  const stockMap = product.stock?.[selectedColor] ?? {};
+  const stockMap = product.stock ?? {};
+  const soldOut = totalStock(product) === 0;
+  const price = effectivePrice(product);
+  const pct = discountPercent(product);
+  const hasDiscount = pct > 0;
 
   return (
     <article className="border-t border-gray-200">
-      {/* ── Drag Carousel ── */}
+      {/* ── Image Carousel ── */}
       <div
         ref={trackRef}
         className="w-full aspect-[3/4] max-w-lg mx-auto relative overflow-hidden select-none"
@@ -156,103 +150,106 @@ export default function ProductCard({ product, onAddToCart }) {
         onMouseUp={onMouseUp}
         onMouseLeave={onMouseLeave}
       >
+        {/* Discount badge */}
+        {hasDiscount && (
+          <div className="absolute top-3 left-3 z-10 bg-black text-white text-[11px] font-black tracking-[0.08em] uppercase px-2.5 py-1">
+            -{pct}%
+          </div>
+        )}
+        {soldOut && (
+          <div className="absolute top-3 right-3 z-10 bg-white text-black text-[11px] font-black tracking-[0.08em] uppercase px-2.5 py-1 border border-black">
+            Sold Out
+          </div>
+        )}
+
         {/* Slide track — all images side by side */}
         <div
           style={{
             display: "flex",
-            width: `${colorKeys.length * 100}%`,
+            width: `${images.length * 100}%`,
             height: "100%",
-            transform: `translateX(calc(${-currentIndex * (100 / colorKeys.length)}% + ${dragOffset / colorKeys.length}px))`,
+            transform: `translateX(calc(${-imageIndex * (100 / images.length)}% + ${dragOffset / images.length}px))`,
             transition: isDragging
               ? "none"
               : "transform 0.38s cubic-bezier(0.25, 1, 0.5, 1)",
             willChange: "transform",
           }}
         >
-          {colorKeys.map((colorKey) => {
-            const variant = product.variants[colorKey];
-            const bg = colorKey === "black" ? "#111111" : "#F5F5F5";
-
-            return (
+          {images.map((image, i) => (
+            <div
+              key={i}
+              style={{
+                width: `${100 / images.length}%`,
+                height: "100%",
+                flexShrink: 0,
+                position: "relative",
+                backgroundColor: "#111111",
+              }}
+            >
+              {/* Subtle grid texture */}
               <div
-                key={colorKey}
+                aria-hidden="true"
                 style={{
-                  width: `${100 / colorKeys.length}%`,
-                  height: "100%",
-                  flexShrink: 0,
-                  position: "relative",
-                  backgroundColor: bg,
+                  position: "absolute",
+                  inset: 0,
+                  opacity: 0.06,
+                  backgroundImage:
+                    "repeating-linear-gradient(0deg,#888 0,#888 1px,transparent 1px,transparent 60px)," +
+                    "repeating-linear-gradient(90deg,#888 0,#888 1px,transparent 1px,transparent 60px)",
                 }}
-              >
-                {/* Subtle grid texture */}
+              />
+
+              {image ? (
+                <Image
+                  src={image}
+                  alt={`${product.name} — photo ${i + 1}`}
+                  fill
+                  priority={i === 0}
+                  quality={85}
+                  sizes="(max-width: 768px) 100vw, 50vw"
+                  className="object-cover"
+                  draggable={false}
+                />
+              ) : (
                 <div
-                  aria-hidden="true"
                   style={{
                     position: "absolute",
                     inset: 0,
-                    opacity: 0.06,
-                    backgroundImage:
-                      "repeating-linear-gradient(0deg,#888 0,#888 1px,transparent 1px,transparent 60px)," +
-                      "repeating-linear-gradient(90deg,#888 0,#888 1px,transparent 1px,transparent 60px)",
+                    display: "flex",
+                    flexDirection: "column",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    gap: "12px",
                   }}
-                />
-
-                {variant.image ? (
-                  <Image
-                    src={variant.image}
-                    alt={`${product.name} in ${variant.label}`}
-                    fill
-                    priority={colorKey === colorKeys[0]}
-                    quality={85}
-                    sizes="(max-width: 768px) 100vw, 50vw"
-                    className="object-cover"
-                    draggable={false}
+                >
+                  <Package
+                    size={68}
+                    strokeWidth={0.8}
+                    className="text-gray-700"
+                    aria-hidden="true"
                   />
-                ) : (
-                  <div
-                    style={{
-                      position: "absolute",
-                      inset: 0,
-                      display: "flex",
-                      flexDirection: "column",
-                      alignItems: "center",
-                      justifyContent: "center",
-                      gap: "12px",
-                    }}
-                  >
-                    <Package
-                      size={68}
-                      strokeWidth={0.8}
-                      className={
-                        colorKey === "black" ? "text-gray-700" : "text-gray-300"
-                      }
-                      aria-hidden="true"
-                    />
-                    <p
-                      className={`text-[10px] tracking-[0.22em] uppercase ${colorKey === "black" ? "text-gray-600" : "text-gray-400"}`}
-                    >
-                      {variant.label} · {product.name}
-                    </p>
-                  </div>
-                )}
-              </div>
-            );
-          })}
+                  <p className="text-[10px] tracking-[0.22em] uppercase text-gray-600">
+                    {product.name}
+                  </p>
+                </div>
+              )}
+            </div>
+          ))}
         </div>
 
         {/* Dot indicators */}
-        {colorKeys.length > 1 && (
+        {images.length > 1 && (
           <div
             className="absolute bottom-3 left-0 right-0 flex justify-center gap-1.5 z-10"
             aria-hidden="true"
           >
-            {colorKeys.map((key) => (
+            {images.map((_, i) => (
               <span
-                key={key}
+                key={i}
                 className={`
                   block rounded-full transition-all duration-300
                   ${
-                    key === selectedColor
+                    i === imageIndex
                       ? "w-4 h-1.5 bg-white"
                       : "w-1.5 h-1.5 bg-white/40"
                   }
@@ -266,27 +263,34 @@ export default function ProductCard({ product, onAddToCart }) {
       {/* ── Product Info ── */}
       <div className="max-w-lg mx-auto px-5 pt-9 pb-14 space-y-8">
         <div>
-          <p className="text-[10px] tracking-[0.22em] uppercase text-gray-400 mb-2">
-            EMPRNTE Collection
-          </p>
+          <div className="flex items-center justify-between gap-3 mb-2">
+            <p className="text-[10px] tracking-[0.22em] uppercase text-gray-400">
+              EMPRNTE Collection
+            </p>
+            {product.sold > 0 && (
+              <p className="flex items-center gap-1 text-[10px] tracking-[0.1em] uppercase text-gray-500">
+                <Flame size={12} strokeWidth={2} className="text-black" aria-hidden="true" />
+                {product.sold} sold
+              </p>
+            )}
+          </div>
           <h2 className="text-[30px] font-black tracking-[-0.03em] text-black leading-none mb-2">
             {product.name}
           </h2>
           <p className="text-[13px] text-gray-500">{product.tagline}</p>
         </div>
 
-        <ColorSelector
-          colors={colorKeys}
-          selected={selectedColor}
-          onChange={handleColorChange}
-        />
-
         <div className="border-t border-gray-200" />
 
-        <div>
+        <div className="flex items-baseline gap-3">
           <span className="text-[34px] font-black tracking-[-0.03em] text-black leading-none">
-            {formatPrice(product.price)}
+            {formatPrice(price)}
           </span>
+          {hasDiscount && (
+            <span className="text-[16px] font-medium text-gray-400 line-through">
+              {formatPrice(product.price)}
+            </span>
+          )}
         </div>
 
         <SizeSelector
@@ -300,6 +304,7 @@ export default function ProductCard({ product, onAddToCart }) {
         <button
           type="button"
           onClick={handleAddToOrder}
+          disabled={soldOut}
           className={`
             w-full font-black text-[12px] tracking-[0.2em] uppercase
             py-[18px]
@@ -308,13 +313,17 @@ export default function ProductCard({ product, onAddToCart }) {
             transition-all duration-200
             active:scale-[0.99]
             ${
-              added
-                ? "bg-white text-black border-black"
-                : "bg-black text-white border-black hover:bg-neutral-800"
+              soldOut
+                ? "bg-white text-gray-300 border-gray-200 cursor-not-allowed"
+                : added
+                  ? "bg-white text-black border-black"
+                  : "bg-black text-white border-black hover:bg-neutral-800"
             }
           `}
         >
-          {added ? (
+          {soldOut ? (
+            "Sold Out"
+          ) : added ? (
             <>
               <Check size={15} strokeWidth={2.5} aria-hidden="true" />
               Added to Order
@@ -342,7 +351,7 @@ export default function ProductCard({ product, onAddToCart }) {
             </span>
             <p className="text-[11px] leading-[1.6] text-gray-600">
               <span className="font-semibold text-black">Want another one?</span>{" "}
-              Pick a different colour or size and tap <span className="font-semibold text-black">Add to Order</span> again.
+              Pick a different size and tap <span className="font-semibold text-black">Add to Order</span> again.
             </p>
           </div>
         )}

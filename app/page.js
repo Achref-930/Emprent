@@ -12,11 +12,10 @@
  * rest as a Server Component, and remove the top-level 'use client'.
  */
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import Image from "next/image";
 import { Truck, Shield, Star, Zap } from "lucide-react";
 
-import { products } from "../lib/products";
 import ProductCard from "./components/ProductCard";
 import CheckoutForm from "./components/CheckoutForm";
 
@@ -196,6 +195,27 @@ function Footer() {
 ───────────────────────────────────────────────── */
 export default function Page() {
   const [cart, setCart] = useState([]);
+  const [products, setProducts] = useState([]);
+  const [productsLoading, setProductsLoading] = useState(true);
+
+  useEffect(() => {
+    let cancelled = false;
+    fetch("/api/products")
+      .then((res) => res.json())
+      .then((data) => {
+        if (cancelled) return;
+        setProducts(Array.isArray(data.products) ? data.products : []);
+      })
+      .catch(() => {
+        if (!cancelled) setProducts([]);
+      })
+      .finally(() => {
+        if (!cancelled) setProductsLoading(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   /**
    * Append a new cart line — every call adds a fresh entry.
@@ -219,15 +239,21 @@ export default function Page() {
       <Hero />
       {/* Products Section */}
       <section id="first-product" className="max-w-lg mx-auto px-5 pt-20">
-        <div className="space-y-16">
-          {products.map((product) => (
-            <ProductCard
-              key={product.id}
-              product={product}
-              onAddToCart={handleAddToCart}
-            />
-          ))}
-        </div>
+        {productsLoading ? (
+          <div className="py-24 text-center text-[12px] tracking-[0.18em] uppercase text-gray-400">
+            Loading products…
+          </div>
+        ) : (
+          <div className="space-y-16">
+            {products.map((product) => (
+              <ProductCard
+                key={product.productId}
+                product={product}
+                onAddToCart={handleAddToCart}
+              />
+            ))}
+          </div>
+        )}
       </section>
 
       {/* Checkout Form Section */}

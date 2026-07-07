@@ -80,10 +80,10 @@ export async function POST(request) {
       deliveryType,
       shippingFee,
       products: (items || []).map((item) => ({
+        productId: item.productId ?? "",
         name: item.name,
         quantity: item.quantity ?? 1,
         price: item.price,
-        color: item.color ?? "",
         size: item.size ?? "",
       })),
       subtotal: subtotal ?? 0,

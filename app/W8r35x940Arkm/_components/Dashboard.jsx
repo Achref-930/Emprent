@@ -4,6 +4,7 @@ import { useEffect, useState, useCallback, useRef } from "react";
 import StatsBar from "./StatsBar";
 import FilterRow from "./FilterRow";
 import OrdersTable from "./OrdersTable";
+import StockManager from "./StockManager";
 import { printOrdersToPDF } from "./utils";
 import { fetchOrdersRequest, updateOrderRequest } from "./api";
 
@@ -15,6 +16,8 @@ export default function Dashboard({ token, onLogout }) {
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState("");
   const [activeFilter, setActiveFilter] = useState("All");
+  const [activeTab, setActiveTab] = useState("orders"); // "orders" | "stock"
+  const [updateError, setUpdateError] = useState("");
 
   const inactivityTimer = useRef(null);
 
@@ -69,9 +72,12 @@ export default function Dashboard({ token, onLogout }) {
   }, [onLogout]);
 
   async function handleUpdateOrder(orderId, { status, notes }) {
-    // Optimistic update
+    // Notes-only edits are always safe to apply optimistically. Status
+    // changes can be rejected (e.g. not enough stock to confirm), so we
+    // wait for the server's answer before touching that field in the UI.
+    setUpdateError("");
     setOrders((prev) =>
-      prev.map((o) => (o._id === orderId ? { ...o, status, notes } : o)),
+      prev.map((o) => (o._id === orderId ? { ...o, notes } : o)),
     );
 
     try {
@@ -86,13 +92,30 @@ export default function Dashboard({ token, onLogout }) {
         return;
       }
 
-      if (data.order) {
-        setOrders((prev) =>
-          prev.map((o) => (o._id === orderId ? data.order : o)),
+      if (responseStatus === 409) {
+        // Blocked — not enough stock to make this transition.
+        const detail = (data.insufficient || [])
+          .map(
+            (i) =>
+              `${i.name} (${i.size}): ${i.available} in stock, ${i.requested} needed`,
+          )
+          .join("; ");
+        setUpdateError(
+          detail ? `${data.message} — ${detail}` : data.message,
         );
+        return;
       }
+
+      if (!data.order) {
+        setUpdateError("Couldn't update this order. Try again.");
+        return;
+      }
+
+      setOrders((prev) =>
+        prev.map((o) => (o._id === orderId ? data.order : o)),
+      );
     } catch {
-      // Revert on failure by refetching source of truth
+      setUpdateError("Couldn't update this order. Try again.");
       fetchOrders();
     }
   }
@@ -119,36 +142,80 @@ export default function Dashboard({ token, onLogout }) {
       </header>
 
       <main className="px-6 py-6 max-w-7xl mx-auto flex flex-col gap-6">
-        <StatsBar orders={orders} />
-
-        <div className="flex items-center justify-between flex-wrap gap-3">
-          <FilterRow activeFilter={activeFilter} onChange={setActiveFilter} />
+        <div className="flex items-center gap-2">
+          <button
+            onClick={() => setActiveTab("orders")}
+            className={`px-4 py-1.5 rounded-md text-sm font-medium transition-colors ${
+              activeTab === "orders"
+                ? "bg-black text-white"
+                : "bg-gray-100 text-foreground hover:bg-gray-200"
+            }`}
+          >
+            Orders
+          </button>
+          <button
+            onClick={() => setActiveTab("stock")}
+            className={`px-4 py-1.5 rounded-md text-sm font-medium transition-colors ${
+              activeTab === "stock"
+                ? "bg-black text-white"
+                : "bg-gray-100 text-foreground hover:bg-gray-200"
+            }`}
+          >
+            Stock
+          </button>
         </div>
 
-        {loading ? (
-          <div className="bg-white border border-gray-200 rounded-lg py-16 text-center text-gray-500">
-            Loading orders…
-          </div>
-        ) : loadError ? (
-          <div className="bg-white border border-gray-200 rounded-lg py-16 text-center text-red-800">
-            {loadError}
-          </div>
-        ) : (
-          <OrdersTable
-            orders={filteredOrders}
-            onUpdateOrder={handleUpdateOrder}
-          />
-        )}
+        {activeTab === "orders" ? (
+          <>
+            <StatsBar orders={orders} />
 
-        {!loading && !loadError && (
-          <button
-            onClick={handleExport}
-            disabled={filteredOrders.length === 0}
-          className="self-start flex items-center gap-2 bg-gray-900 hover:bg-gray-700 text-white px-4 py-2 rounded-md text-sm font-medium transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
-          >
-            <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="6 9 6 2 18 2 18 9"/><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/><rect x="6" y="14" width="12" height="8"/></svg>
-            Print / Save as PDF
-          </button>
+            <div className="flex items-center justify-between flex-wrap gap-3">
+              <FilterRow
+                activeFilter={activeFilter}
+                onChange={setActiveFilter}
+              />
+            </div>
+
+            {updateError && (
+              <div className="bg-red-50 border border-red-200 text-red-800 rounded-lg px-4 py-3 text-sm flex items-start justify-between gap-3">
+                <span>{updateError}</span>
+                <button
+                  onClick={() => setUpdateError("")}
+                  className="shrink-0 text-red-800/70 hover:text-red-800 font-medium"
+                >
+                  Dismiss
+                </button>
+              </div>
+            )}
+
+            {loading ? (
+              <div className="bg-white border border-gray-200 rounded-lg py-16 text-center text-gray-500">
+                Loading orders…
+              </div>
+            ) : loadError ? (
+              <div className="bg-white border border-gray-200 rounded-lg py-16 text-center text-red-800">
+                {loadError}
+              </div>
+            ) : (
+              <OrdersTable
+                orders={filteredOrders}
+                onUpdateOrder={handleUpdateOrder}
+              />
+            )}
+
+            {!loading && !loadError && (
+              <button
+                onClick={handleExport}
+                disabled={filteredOrders.length === 0}
+              className="self-start flex items-center gap-2 bg-gray-900 hover:bg-gray-700 text-white px-4 py-2 rounded-md text-sm font-medium transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+              >
+                <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="6 9 6 2 18 2 18 9"/><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/><rect x="6" y="14" width="12" height="8"/></svg>
+                Print / Save as PDF
+              </button>
+            )}
+          </>
+        ) : (
+          <StockManager token={token} onLogout={onLogout} />
         )}
       </main>
     </div>
