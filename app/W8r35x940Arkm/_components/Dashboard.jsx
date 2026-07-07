@@ -10,6 +10,54 @@ import { fetchOrdersRequest, updateOrderRequest } from "./api";
 
 const INACTIVITY_LIMIT_MS = 30 * 60 * 1000; // 30 minutes
 const SITE_NAME = "Order Manager";
+const POLL_INTERVAL_MS = 18 * 1000; // 15–20s live sync while Orders tab is active
+
+function SyncIndicator({ lastSyncedAt, onRefresh }) {
+  const [, forceTick] = useState(0);
+
+  useEffect(() => {
+    const id = setInterval(() => forceTick((t) => t + 1), 1000);
+    return () => clearInterval(id);
+  }, []);
+
+  const secondsAgo = lastSyncedAt
+    ? Math.max(0, Math.round((Date.now() - lastSyncedAt) / 1000))
+    : null;
+
+  const label =
+    secondsAgo === null
+      ? "Syncing…"
+      : secondsAgo < 5
+        ? "Synced just now"
+        : `Synced ${secondsAgo}s ago`;
+
+  return (
+    <div className="flex items-center gap-2 text-sm text-gray-500">
+      <span>{label}</span>
+      <button
+        onClick={onRefresh}
+        aria-label="Refresh orders now"
+        className="flex items-center justify-center w-7 h-7 rounded-md bg-gray-100 hover:bg-gray-200 transition-colors"
+      >
+        <svg
+          xmlns="http://www.w3.org/2000/svg"
+          width="14"
+          height="14"
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          strokeWidth="2.2"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+          aria-hidden="true"
+        >
+          <path d="M21 12a9 9 0 1 1-2.64-6.36" />
+          <path d="M21 3v6h-6" />
+        </svg>
+      </button>
+    </div>
+  );
+}
 
 export default function Dashboard({ token, onLogout }) {
   const [orders, setOrders] = useState([]);
@@ -18,32 +66,52 @@ export default function Dashboard({ token, onLogout }) {
   const [activeFilter, setActiveFilter] = useState("All");
   const [activeTab, setActiveTab] = useState("orders"); // "orders" | "stock"
   const [updateError, setUpdateError] = useState("");
+  const [lastSyncedAt, setLastSyncedAt] = useState(null);
 
   const inactivityTimer = useRef(null);
+  const ordersRef = useRef(orders);
+  ordersRef.current = orders;
 
-  const fetchOrders = useCallback(async () => {
-    setLoading(true);
-    setLoadError("");
-    try {
-      const { ok, status, data } = await fetchOrdersRequest(token);
-
-      if (status === 401) {
-        onLogout();
-        return;
+  /**
+   * silent = true for background polling: no loading spinner, no error
+   * banner, and the orders array is only replaced if the fetched data
+   * actually differs — so the table doesn't flicker/reset scroll or
+   * close an open modal when nothing changed.
+   */
+  const fetchOrders = useCallback(
+    async ({ silent = false } = {}) => {
+      if (!silent) {
+        setLoading(true);
+        setLoadError("");
       }
+      try {
+        const { ok, status, data } = await fetchOrdersRequest(token);
 
-      if (!ok) {
-        setLoadError("Couldn't load orders. Try refreshing.");
-        return;
+        if (status === 401) {
+          onLogout();
+          return;
+        }
+
+        if (!ok) {
+          if (!silent) setLoadError("Couldn't load orders. Try refreshing.");
+          return;
+        }
+
+        const incoming = Array.isArray(data.orders) ? data.orders : data;
+        const changed =
+          JSON.stringify(incoming) !== JSON.stringify(ordersRef.current);
+        if (changed) {
+          setOrders(incoming);
+        }
+        setLastSyncedAt(Date.now());
+      } catch {
+        if (!silent) setLoadError("Couldn't load orders. Try refreshing.");
+      } finally {
+        if (!silent) setLoading(false);
       }
-
-      setOrders(Array.isArray(data.orders) ? data.orders : data);
-    } catch {
-      setLoadError("Couldn't load orders. Try refreshing.");
-    } finally {
-      setLoading(false);
-    }
-  }, [token, onLogout]);
+    },
+    [token, onLogout],
+  );
 
   useEffect(() => {
     // Deferred so the effect body itself never synchronously calls
@@ -51,6 +119,48 @@ export default function Dashboard({ token, onLogout }) {
     // schedules the fetch for the next microtask instead.
     queueMicrotask(() => fetchOrders());
   }, [fetchOrders]);
+
+  // Live sync: poll while the Orders tab is active, the browser tab is
+  // visible, and pause entirely while the Stock tab is showing.
+  useEffect(() => {
+    if (activeTab !== "orders") return;
+
+    let intervalId = null;
+
+    function startPolling() {
+      if (intervalId) return;
+      intervalId = setInterval(() => {
+        fetchOrders({ silent: true });
+      }, POLL_INTERVAL_MS);
+    }
+
+    function stopPolling() {
+      if (intervalId) {
+        clearInterval(intervalId);
+        intervalId = null;
+      }
+    }
+
+    function handleVisibilityChange() {
+      if (document.hidden) {
+        stopPolling();
+      } else {
+        // Catch up immediately when the tab regains focus, then resume.
+        fetchOrders({ silent: true });
+        startPolling();
+      }
+    }
+
+    if (!document.hidden) startPolling();
+    document.addEventListener("visibilitychange", handleVisibilityChange);
+
+    return () => {
+      stopPolling();
+      document.removeEventListener("visibilitychange", handleVisibilityChange);
+    };
+  }, [activeTab, fetchOrders]);
+
+
 
   // Inactivity auto-logout
   useEffect(() => {
@@ -173,6 +283,10 @@ export default function Dashboard({ token, onLogout }) {
               <FilterRow
                 activeFilter={activeFilter}
                 onChange={setActiveFilter}
+              />
+              <SyncIndicator
+                lastSyncedAt={lastSyncedAt}
+                onRefresh={() => fetchOrders({ silent: true })}
               />
             </div>
 

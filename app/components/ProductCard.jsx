@@ -1,7 +1,7 @@
 "use client";
 
-import { useState, useRef, useCallback } from "react";
-import { Package, Check, Plus, Flame } from "lucide-react";
+import { useState, useRef, useCallback, useEffect } from "react";
+import { Package, Check, Plus } from "lucide-react";
 import Image from "next/image";
 import SizeSelector from "./SizeSelector";
 import {
@@ -11,6 +11,10 @@ import {
   discountPercent,
   totalStock,
 } from "../../lib/products";
+
+// Below this many px of movement, we haven't yet decided whether the
+// gesture is a horizontal swipe (carousel) or a vertical one (page scroll).
+const AXIS_LOCK_THRESHOLD = 8;
 
 export default function ProductCard({ product, onAddToCart }) {
   const images = product.images?.length ? product.images : [null];
@@ -23,8 +27,15 @@ export default function ProductCard({ product, onAddToCart }) {
   const [isDragging, setIsDragging] = useState(false);
 
   const dragStartX = useRef(null);
+  const dragStartY = useRef(null);
   const dragStartTime = useRef(null);
+  const dragAxis = useRef(null); // "x" | "y" | null — decided once per gesture
   const trackRef = useRef(null);
+  // Mirrors imageIndex/isDragging into refs so the native (non-passive)
+  // touch listeners — attached once — always read fresh values without
+  // needing to be re-attached on every render.
+  const imageIndexRef = useRef(imageIndex);
+  imageIndexRef.current = imageIndex;
 
   const snapToIndex = useCallback(
     (index) => {
@@ -35,36 +46,93 @@ export default function ProductCard({ product, onAddToCart }) {
     [images.length],
   );
 
-  /* ── Touch ── */
-  const onTouchStart = (e) => {
-    dragStartX.current = e.touches[0].clientX;
-    dragStartTime.current = Date.now();
-    setIsDragging(true);
-  };
+  /* ── Touch — attached natively so touchmove can call preventDefault()
+     (React's synthetic touch handlers are passive by default and can't).
+     We only preventDefault once the gesture is confirmed horizontal, so
+     a vertical swipe that starts on the carousel still scrolls the page
+     normally and nothing "wiggles" or fights the native scroll. ── */
+  useEffect(() => {
+    const el = trackRef.current;
+    if (!el) return;
 
-  const onTouchMove = (e) => {
-    if (dragStartX.current === null) return;
-    const delta = e.touches[0].clientX - dragStartX.current;
-    const atStart = imageIndex === 0 && delta > 0;
-    const atEnd = imageIndex === images.length - 1 && delta < 0;
-    setDragOffset(atStart || atEnd ? delta * 0.2 : delta);
-  };
-
-  const onTouchEnd = (e) => {
-    if (dragStartX.current === null) return;
-    const delta = e.changedTouches[0].clientX - dragStartX.current;
-    const duration = Date.now() - dragStartTime.current;
-    const velocity = Math.abs(delta) / duration;
-    dragStartX.current = null;
-    setIsDragging(false);
-    setDragOffset(0);
-    const width = trackRef.current?.offsetWidth ?? 300;
-    const isFlick = velocity > 0.3;
-    const isDrag = Math.abs(delta) > width * 0.35;
-    if ((isFlick || isDrag) && Math.abs(delta) > 10) {
-      snapToIndex(delta < 0 ? imageIndex + 1 : imageIndex - 1);
+    function handleTouchStart(e) {
+      dragStartX.current = e.touches[0].clientX;
+      dragStartY.current = e.touches[0].clientY;
+      dragStartTime.current = Date.now();
+      dragAxis.current = null;
+      setIsDragging(true);
     }
-  };
+
+    function handleTouchMove(e) {
+      if (dragStartX.current === null) return;
+      const touch = e.touches[0];
+      const deltaX = touch.clientX - dragStartX.current;
+      const deltaY = touch.clientY - dragStartY.current;
+
+      if (dragAxis.current === null) {
+        if (
+          Math.abs(deltaX) < AXIS_LOCK_THRESHOLD &&
+          Math.abs(deltaY) < AXIS_LOCK_THRESHOLD
+        ) {
+          return; // not enough movement yet to decide
+        }
+        dragAxis.current = Math.abs(deltaX) > Math.abs(deltaY) ? "x" : "y";
+        if (dragAxis.current === "y") {
+          // Vertical gesture — hand it back to the browser entirely.
+          dragStartX.current = null;
+          setIsDragging(false);
+          return;
+        }
+      }
+
+      if (dragAxis.current !== "x") return;
+
+      // Confirmed horizontal — stop the page from also trying to scroll.
+      e.preventDefault();
+
+      const index = imageIndexRef.current;
+      const atStart = index === 0 && deltaX > 0;
+      const atEnd = index === images.length - 1 && deltaX < 0;
+      setDragOffset(atStart || atEnd ? deltaX * 0.2 : deltaX);
+    }
+
+    function handleTouchEnd(e) {
+      if (dragStartX.current === null || dragAxis.current !== "x") {
+        dragStartX.current = null;
+        dragAxis.current = null;
+        setIsDragging(false);
+        setDragOffset(0);
+        return;
+      }
+      const touch = e.changedTouches[0];
+      const delta = touch.clientX - dragStartX.current;
+      const duration = Date.now() - dragStartTime.current;
+      const velocity = Math.abs(delta) / duration;
+      dragStartX.current = null;
+      dragAxis.current = null;
+      setIsDragging(false);
+      setDragOffset(0);
+      const width = trackRef.current?.offsetWidth ?? 300;
+      const isFlick = velocity > 0.3;
+      const isDrag = Math.abs(delta) > width * 0.35;
+      if ((isFlick || isDrag) && Math.abs(delta) > 10) {
+        snapToIndex(delta < 0 ? imageIndexRef.current + 1 : imageIndexRef.current - 1);
+      }
+    }
+
+    // touchmove must be non-passive so preventDefault() actually works.
+    el.addEventListener("touchstart", handleTouchStart, { passive: true });
+    el.addEventListener("touchmove", handleTouchMove, { passive: false });
+    el.addEventListener("touchend", handleTouchEnd, { passive: true });
+    el.addEventListener("touchcancel", handleTouchEnd, { passive: true });
+
+    return () => {
+      el.removeEventListener("touchstart", handleTouchStart);
+      el.removeEventListener("touchmove", handleTouchMove);
+      el.removeEventListener("touchend", handleTouchEnd);
+      el.removeEventListener("touchcancel", handleTouchEnd);
+    };
+  }, [images.length, snapToIndex]);
 
   /* ── Mouse (desktop) ── */
   const onMouseDown = (e) => {
@@ -141,10 +209,7 @@ export default function ProductCard({ product, onAddToCart }) {
       <div
         ref={trackRef}
         className="w-full aspect-[3/4] max-w-lg mx-auto relative overflow-hidden select-none"
-        style={{ cursor: isDragging ? "grabbing" : "grab" }}
-        onTouchStart={onTouchStart}
-        onTouchMove={onTouchMove}
-        onTouchEnd={onTouchEnd}
+        style={{ cursor: isDragging ? "grabbing" : "grab", touchAction: "pan-y" }}
         onMouseDown={onMouseDown}
         onMouseMove={onMouseMove}
         onMouseUp={onMouseUp}
@@ -267,12 +332,6 @@ export default function ProductCard({ product, onAddToCart }) {
             <p className="text-[10px] tracking-[0.22em] uppercase text-gray-400">
               EMPRNTE Collection
             </p>
-            {product.sold > 0 && (
-              <p className="flex items-center gap-1 text-[10px] tracking-[0.1em] uppercase text-gray-500">
-                <Flame size={12} strokeWidth={2} className="text-black" aria-hidden="true" />
-                {product.sold} sold
-              </p>
-            )}
           </div>
           <h2 className="text-[30px] font-black tracking-[-0.03em] text-black leading-none mb-2">
             {product.name}

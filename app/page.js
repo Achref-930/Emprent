@@ -5,36 +5,21 @@
  * Stack: Next.js (App Router) · Tailwind CSS · Lucide React
  * Market: North Africa / Algeria  ·  Design: Strict B&W Minimalism
  *
- * NOTE: The entire page is a Client Component so the sticky header
- * scroll handler and the checkout form share the same module.
- * For production, extract <CheckoutForm> into its own
- * `app/components/CheckoutForm.jsx` with "use client", keep the
- * rest as a Server Component, and remove the top-level 'use client'.
+ * NOTE: The entire page is a Client Component so the header and the
+ * cart/checkout drawer (app/components/CartDrawer.jsx) share cart state.
  */
 
 import { useState, useEffect } from "react";
 import Image from "next/image";
-import { Truck, Shield, Star, Zap } from "lucide-react";
+import { Truck, Shield, Star, Zap, ShoppingBag } from "lucide-react";
 
 import ProductCard from "./components/ProductCard";
-import CheckoutForm from "./components/CheckoutForm";
+import CartDrawer from "./components/CartDrawer";
 
 /* ─────────────────────────────────────────────────
    STICKY HEADER
 ───────────────────────────────────────────────── */
-function Header({ cartCount }) {
-  const scrollToForm = () => {
-    if (cartCount > 0) {
-      document
-        .getElementById("order-form")
-        ?.scrollIntoView({ behavior: "smooth" });
-    } else {
-      document
-        .getElementById("first-product")
-        ?.scrollIntoView({ behavior: "smooth" });
-    }
-  };
-
+function Header({ cartCount, onCartClick }) {
   return (
     <header className="fixed top-0 inset-x-0 z-50 bg-white/80 backdrop-blur-lg border-b border-black">
       <div className="max-w-lg mx-auto px-5 h-[56px] flex items-center justify-between">
@@ -46,35 +31,40 @@ function Header({ cartCount }) {
         </span>
 
         <button
-          onClick={scrollToForm}
+          onClick={onCartClick}
+          aria-label={
+            cartCount > 0
+              ? `Open cart, ${cartCount} item${cartCount > 1 ? "s" : ""}`
+              : "Open cart"
+          }
           className="
-            relative bg-black text-white
-            text-[11px] font-bold tracking-[0.16em] uppercase
-            px-5 py-2.5
-            hover:bg-neutral-800 active:scale-[0.97]
+            relative flex items-center justify-center
+            w-10 h-10
+            text-black
+            hover:opacity-70 active:scale-[0.94]
             transition-all duration-150
           "
         >
+          <ShoppingBag size={22} strokeWidth={1.75} aria-hidden="true" />
           {cartCount > 0 && (
             <span
-              aria-label={`${cartCount} item${cartCount > 1 ? "s" : ""} in order`}
+              aria-hidden="true"
               style={{
                 animation: "badgePop 0.3s cubic-bezier(0.34,1.56,0.64,1) both",
                 background: "#FF3B30",
                 boxShadow: "0 0 0 2.5px #fff, 0 2px 6px rgba(255,59,48,0.55)",
               }}
               className="
-                absolute -top-[9px] -right-[9px]
-                min-w-[20px] h-[20px] px-[4px] rounded-full
+                absolute top-0 right-0
+                min-w-[18px] h-[18px] px-[4px] rounded-full
                 flex items-center justify-center
-                text-[11px] font-black text-white leading-none tabular-nums
+                text-[10px] font-black text-white leading-none tabular-nums
                 pointer-events-none select-none
               "
             >
               {cartCount > 99 ? "99+" : cartCount}
             </span>
           )}
-          {cartCount > 0 ? "View Order" : "Buy Now"}
         </button>
       </div>
     </header>
@@ -197,6 +187,7 @@ export default function Page() {
   const [cart, setCart] = useState([]);
   const [products, setProducts] = useState([]);
   const [productsLoading, setProductsLoading] = useState(true);
+  const [cartOpen, setCartOpen] = useState(false);
 
   useEffect(() => {
     let cancelled = false;
@@ -235,7 +226,7 @@ export default function Page() {
 
   return (
     <main className="min-h-screen bg-white font-sans antialiased">
-      <Header cartCount={cart.length} />
+      <Header cartCount={cart.length} onCartClick={() => setCartOpen(true)} />
       <Hero />
       {/* Products Section */}
       <section id="first-product" className="max-w-lg mx-auto px-5 pt-20">
@@ -256,17 +247,17 @@ export default function Page() {
         )}
       </section>
 
-      {/* Checkout Form Section */}
-      <section
-        id="order-form"
-        className="bg-white border-t-2 border-black scroll-mt-[55px]"
-      >
-        <CheckoutForm cart={cart} onRemoveItem={handleRemoveFromCart} />
-      </section>
-
       <Features />
 
       <Footer />
+
+      <CartDrawer
+        isOpen={cartOpen}
+        onClose={() => setCartOpen(false)}
+        cart={cart}
+        onRemoveItem={handleRemoveFromCart}
+        onOrderPlaced={() => setCart([])}
+      />
     </main>
   );
 }

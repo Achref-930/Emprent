@@ -1,12 +1,15 @@
 "use client";
 
 import { useEffect, useState, useCallback } from "react";
+import { Pencil } from "lucide-react";
 import { fetchProductsRequest, updateProductRequest } from "./api";
 
 export default function StockManager({ token, onLogout }) {
   const [products, setProducts] = useState([]);
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState("");
+  // Only one product can be in edit mode at a time.
+  const [editingId, setEditingId] = useState(null);
 
   const fetchProducts = useCallback(async () => {
     setLoading(true);
@@ -53,39 +56,69 @@ export default function StockManager({ token, onLogout }) {
           product={product}
           token={token}
           onLogout={onLogout}
-          onSaved={(updated) =>
+          isEditing={editingId === product.productId}
+          onStartEdit={() => setEditingId(product.productId)}
+          onCancelEdit={() => setEditingId(null)}
+          onSaved={(updated) => {
             setProducts((prev) =>
               prev.map((p) =>
                 p.productId === updated.productId ? updated : p,
               ),
-            )
-          }
+            );
+            setEditingId(null);
+          }}
         />
       ))}
     </div>
   );
 }
 
-function ProductEditor({ product, token, onLogout, onSaved }) {
+function buildStockState(product) {
+  const initial = {};
+  for (const size of product.sizes || []) {
+    initial[size] = String(product.stock?.[size] ?? 0);
+  }
+  return initial;
+}
+
+function ProductEditor({
+  product,
+  token,
+  onLogout,
+  isEditing,
+  onStartEdit,
+  onCancelEdit,
+  onSaved,
+}) {
   const [price, setPrice] = useState(String(product.price ?? ""));
   const [discountPrice, setDiscountPrice] = useState(
     product.discountPrice != null ? String(product.discountPrice) : "",
   );
-  const [stock, setStock] = useState(() => {
-    const initial = {};
-    for (const size of product.sizes || []) {
-      initial[size] = String(product.stock?.[size] ?? 0);
-    }
-    return initial;
-  });
+  const [stock, setStock] = useState(() => buildStockState(product));
   const [saving, setSaving] = useState(false);
   const [saveError, setSaveError] = useState("");
   const [saved, setSaved] = useState(false);
 
-  const totalStock = Object.values(stock).reduce(
+  const displayTotalStock = Object.values(product.stock || {}).reduce(
     (sum, v) => sum + (Number(v) || 0),
     0,
   );
+
+  function handleStartEdit() {
+    // Re-seed the form from the latest saved values every time editing starts.
+    setPrice(String(product.price ?? ""));
+    setDiscountPrice(
+      product.discountPrice != null ? String(product.discountPrice) : "",
+    );
+    setStock(buildStockState(product));
+    setSaveError("");
+    onStartEdit();
+  }
+
+  function handleCancel() {
+    setSaveError("");
+    onCancelEdit();
+  }
 
   async function handleSave() {
     setSaving(true);
@@ -128,14 +161,76 @@ function ProductEditor({ product, token, onLogout, onSaved }) {
     }
   }
 
+  /* ── Read-only view ── */
+  if (!isEditing) {
+    return (
+      <div className="bg-white border border-gray-200 rounded-lg p-5 flex flex-col gap-5">
+        <div className="flex items-center justify-between flex-wrap gap-2">
+          <div>
+            <h3 className="font-semibold text-base">{product.name}</h3>
+            <p className="text-sm text-gray-500 mt-0.5">
+              {displayTotalStock} unit{displayTotalStock !== 1 ? "s" : ""} in
+              stock · {product.sold ?? 0} sold
+            </p>
+          </div>
+          <button
+            onClick={handleStartEdit}
+            className="flex items-center gap-1.5 bg-gray-100 hover:bg-gray-200 text-foreground px-3 py-1.5 rounded-md text-sm font-medium transition-colors"
+          >
+            <Pencil size={14} strokeWidth={2} aria-hidden="true" />
+            Edit
+          </button>
+        </div>
+
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          <div>
+            <span className="block text-xs font-medium text-gray-500 mb-1">
+              Price (DA)
+            </span>
+            <p className="text-sm text-foreground px-3 py-2">
+              {product.price ?? "—"}
+            </p>
+          </div>
+          <div>
+            <span className="block text-xs font-medium text-gray-500 mb-1">
+              Discount price (DA)
+            </span>
+            <p className="text-sm text-foreground px-3 py-2">
+              {product.discountPrice != null ? product.discountPrice : "No discount"}
+            </p>
+          </div>
+        </div>
+
+        <div>
+          <span className="block text-xs font-medium text-gray-500 mb-2">
+            Stock per size
+          </span>
+          <div className="grid grid-cols-2 sm:grid-cols-5 gap-3">
+            {(product.sizes || []).map((size) => (
+              <div key={size}>
+                <span className="block text-[11px] text-gray-400 mb-1">
+                  {size}
+                </span>
+                <p className="text-sm text-foreground px-2 py-1.5">
+                  {product.stock?.[size] ?? 0}
+                </p>
+              </div>
+            ))}
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  /* ── Edit view ── */
   return (
-    <div className="bg-white border border-gray-200 rounded-lg p-5 flex flex-col gap-5">
+    <div className="bg-white border border-gray-200 rounded-lg p-5 flex flex-col gap-5 ring-2 ring-gray-900/10">
       <div className="flex items-center justify-between flex-wrap gap-2">
         <div>
           <h3 className="font-semibold text-base">{product.name}</h3>
           <p className="text-sm text-gray-500 mt-0.5">
-            {totalStock} unit{totalStock !== 1 ? "s" : ""} in stock ·{" "}
-            {product.sold ?? 0} sold
+            {displayTotalStock} unit{displayTotalStock !== 1 ? "s" : ""} in
+            stock · {product.sold ?? 0} sold
           </p>
         </div>
       </div>
@@ -200,6 +295,13 @@ function ProductEditor({ product, token, onLogout, onSaved }) {
           className="bg-gray-900 hover:bg-gray-700 text-white px-4 py-2 rounded-md text-sm font-medium transition-colors disabled:opacity-40"
         >
           {saving ? "Saving…" : "Save changes"}
+        </button>
+        <button
+          onClick={handleCancel}
+          disabled={saving}
+          className="bg-gray-100 hover:bg-gray-200 text-foreground px-4 py-2 rounded-md text-sm font-medium transition-colors disabled:opacity-40"
+        >
+          Cancel
         </button>
         {saved && (
           <span className="text-sm text-green-700 font-medium">Saved</span>
