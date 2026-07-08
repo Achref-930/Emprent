@@ -228,20 +228,24 @@ export default function Page() {
       <Header cartCount={cart.length} onCartClick={() => setCartOpen(true)} />
       <Hero />
       {/* Products Section
-          Mobile & tablet: single column, capped at max-w-lg (phone-card width) — unchanged.
-          Large screens (lg: 1024px+): two products side by side, in a wider container.
-          Undecided about tablets yet? This is the one line to change: swap
-          every `lg:` below for `md:` (768px+) to make tablets go 2-up too. */}
+          Mobile & tablet-portrait: single column, capped at max-w-lg (phone-card width).
+          Large screens AND landscape orientation: two products side by side,
+          in a wider container. Stacking `lg:` with `landscape:` (rather than
+          just `lg:`) is what keeps big tablets in portrait (e.g. a 12.9"
+          iPad Pro is 1024px wide in portrait — the same as the `lg`
+          breakpoint) single-column, while the same tablet rotated to
+          landscape — or any real desktop, which is basically always
+          landscape — goes 2-up. */}
       <section
         id="first-product"
-        className="max-w-lg lg:max-w-6xl mx-auto px-5 pt-20"
+        className="max-w-lg lg:landscape:max-w-6xl mx-auto px-5 pt-20"
       >
         {productsLoading ? (
           <div className="py-24 text-center text-[12px] tracking-[0.18em] uppercase text-gray-400">
             Loading products…
           </div>
         ) : (
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-y-16 lg:gap-x-16">
+          <div className="grid grid-cols-1 lg:landscape:grid-cols-2 gap-y-16 lg:landscape:gap-x-16">
             {products.map((product, index) => (
               <ProductCard
                 key={product.productId}

@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useRef, useCallback, useEffect } from "react";
-import { Package, Check, Plus, ZoomIn } from "lucide-react";
+import { Package, Check, Plus, ZoomIn, ChevronLeft, ChevronRight } from "lucide-react";
 import Image from "next/image";
 import SizeSelector from "./SizeSelector";
 import ZoomOverlay from "./ZoomOverlay";
@@ -304,6 +304,32 @@ export default function ProductCard({ product, onAddToCart, isFirstProduct = fal
             </div>
           ))}
         </div>
+
+        {/* Prev/next photo buttons — desktop only. Touch devices already
+            have swipe; these exist purely because a mouse has no swipe
+            gesture, so switching photos needs a visible, clickable target. */}
+        {images.length > 1 && (
+          <>
+            <button
+              type="button"
+              onClick={() => snapToIndex(imageIndex - 1)}
+              disabled={imageIndex === 0}
+              aria-label="Previous photo"
+              className="hidden lg:flex absolute left-3 top-1/2 -translate-y-1/2 z-10 w-9 h-9 rounded-full bg-black/45 backdrop-blur-sm items-center justify-center text-white hover:bg-black/65 active:scale-90 transition-all duration-150 disabled:opacity-0 disabled:pointer-events-none"
+            >
+              <ChevronLeft size={18} strokeWidth={2.2} aria-hidden="true" />
+            </button>
+            <button
+              type="button"
+              onClick={() => snapToIndex(imageIndex + 1)}
+              disabled={imageIndex === images.length - 1}
+              aria-label="Next photo"
+              className="hidden lg:flex absolute right-3 top-1/2 -translate-y-1/2 z-10 w-9 h-9 rounded-full bg-black/45 backdrop-blur-sm items-center justify-center text-white hover:bg-black/65 active:scale-90 transition-all duration-150 disabled:opacity-0 disabled:pointer-events-none"
+            >
+              <ChevronRight size={18} strokeWidth={2.2} aria-hidden="true" />
+            </button>
+          </>
+        )}
 
         {/* Zoom trigger — opens the full-screen overlay for the current slide */}
         {images[imageIndex] && (
