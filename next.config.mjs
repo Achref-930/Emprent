@@ -1,9 +1,16 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   images: {
-    // next/image requires quality values to be explicitly whitelisted.
-    // 85 is used for product photos, 90 for the hero image.
-    qualities: [75, 85, 90],
+    // Images are pre-compressed by hand in Squoosh (90 for the hero, 85
+    // for product photos) specifically to keep zoom-in detail sharp.
+    // Letting Vercel's Image Optimization API re-encode them on top of
+    // that would be a second lossy pass (worse quality) AND burns the
+    // Hobby plan's 5,000 transformations/month for no benefit — these
+    // files are already small and already optimized. Skipping the
+    // optimizer serves the exact bytes we tuned, uses zero transformation
+    // quota, and only costs plain bandwidth (100GB/month on Hobby, and
+    // our current image weight is nowhere near that).
+    unoptimized: true,
   },
 };
 

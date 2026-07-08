@@ -84,7 +84,6 @@ function Hero() {
           alt="EMPRNTE collection"
           fill
           priority
-          quality={90}
           sizes="100vw"
           className="object-cover"
         />
@@ -236,11 +235,12 @@ export default function Page() {
           </div>
         ) : (
           <div className="space-y-16">
-            {products.map((product) => (
+            {products.map((product, index) => (
               <ProductCard
                 key={product.productId}
                 product={product}
                 onAddToCart={handleAddToCart}
+                isFirstProduct={index === 0}
               />
             ))}
           </div>

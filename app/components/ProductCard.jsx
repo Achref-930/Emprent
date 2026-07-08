@@ -1,22 +1,24 @@
 "use client";
 
 import { useState, useRef, useCallback, useEffect } from "react";
-import { Package, Check, Plus } from "lucide-react";
+import { Package, Check, Plus, ZoomIn } from "lucide-react";
 import Image from "next/image";
 import SizeSelector from "./SizeSelector";
+import ZoomOverlay from "./ZoomOverlay";
 import {
   formatPrice,
   isInStock,
   effectivePrice,
   discountPercent,
   totalStock,
+  displayImageSrc,
 } from "../../lib/products";
 
 // Below this many px of movement, we haven't yet decided whether the
 // gesture is a horizontal swipe (carousel) or a vertical one (page scroll).
 const AXIS_LOCK_THRESHOLD = 8;
 
-export default function ProductCard({ product, onAddToCart }) {
+export default function ProductCard({ product, onAddToCart, isFirstProduct = false }) {
   const images = product.images?.length ? product.images : [null];
 
   const [imageIndex, setImageIndex] = useState(0);
@@ -25,6 +27,7 @@ export default function ProductCard({ product, onAddToCart }) {
   const [added, setAdded] = useState(false);
   const [dragOffset, setDragOffset] = useState(0);
   const [isDragging, setIsDragging] = useState(false);
+  const [zoomOpen, setZoomOpen] = useState(false);
 
   const dragStartX = useRef(null);
   const dragStartY = useRef(null);
@@ -266,11 +269,10 @@ export default function ProductCard({ product, onAddToCart }) {
 
               {image ? (
                 <Image
-                  src={image}
+                  src={displayImageSrc(image)}
                   alt={`${product.name} — photo ${i + 1}`}
                   fill
-                  priority={i === 0}
-                  quality={85}
+                  priority={isFirstProduct && i === 0}
                   sizes="(max-width: 768px) 100vw, 50vw"
                   className="object-cover"
                   draggable={false}
@@ -302,6 +304,18 @@ export default function ProductCard({ product, onAddToCart }) {
           ))}
         </div>
 
+        {/* Zoom trigger — opens the full-screen overlay for the current slide */}
+        {images[imageIndex] && (
+          <button
+            type="button"
+            onClick={() => setZoomOpen(true)}
+            aria-label="Zoom in on this photo"
+            className="absolute bottom-3 right-3 z-10 w-10 h-10 rounded-full bg-black/45 backdrop-blur-sm flex items-center justify-center text-white active:scale-90 transition-transform duration-150"
+          >
+            <ZoomIn size={17} strokeWidth={2.2} aria-hidden="true" />
+          </button>
+        )}
+
         {/* Dot indicators */}
         {images.length > 1 && (
           <div
@@ -324,6 +338,15 @@ export default function ProductCard({ product, onAddToCart }) {
           </div>
         )}
       </div>
+
+      {zoomOpen && images[imageIndex] && (
+        <ZoomOverlay
+          displaySrc={displayImageSrc(images[imageIndex])}
+          zoomSrc={images[imageIndex]}
+          alt={`${product.name} — photo ${imageIndex + 1}`}
+          onClose={() => setZoomOpen(false)}
+        />
+      )}
 
       {/* ── Product Info ── */}
       <div className="max-w-lg mx-auto px-5 pt-9 pb-14 space-y-8">
