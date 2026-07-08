@@ -12,6 +12,7 @@ import {
   discountPercent,
   totalStock,
   displayImageSrc,
+  glueLastWords,
 } from "../../lib/products";
 
 // Below this many px of movement, we haven't yet decided whether the
@@ -296,7 +297,7 @@ export default function ProductCard({ product, onAddToCart, isFirstProduct = fal
                     aria-hidden="true"
                   />
                   <p className="text-[10px] tracking-[0.22em] uppercase text-gray-600">
-                    {product.name}
+                    {glueLastWords(product.name)}
                   </p>
                 </div>
               )}
@@ -357,7 +358,7 @@ export default function ProductCard({ product, onAddToCart, isFirstProduct = fal
             </p>
           </div>
           <h2 className="text-[30px] font-black tracking-[-0.03em] text-black leading-none mb-2">
-            {product.name}
+            {glueLastWords(product.name)}
           </h2>
           <p className="text-[13px] text-gray-500">{product.tagline}</p>
         </div>
