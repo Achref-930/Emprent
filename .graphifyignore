@@ -1,8 +1,0 @@
-*.png
-*.jpg
-*.jpeg
-*.svg
-*.md
-*.pdf
-node_modules/
-dist/
