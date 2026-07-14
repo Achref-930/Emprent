@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState, useCallback } from "react";
-import { X } from "lucide-react";
+import { X, ChevronLeft, ChevronRight } from "lucide-react";
 
 /**
  * ZoomOverlay
@@ -18,7 +18,9 @@ import { X } from "lucide-react";
  *   • Drag to pan once zoomed in
  *   • Double-tap / double-click to toggle between 1x and 2.5x
  *   • Swipe down to dismiss (only when not zoomed in)
+ *   • Swipe left/right to go to next/prev image (only when not zoomed in)
  *   • Tap the backdrop, tap ✕, or press Esc to close
+ *   • Android back button → closes overlay (via history/popstate)
  *
  * The "Instagram effect": pinching past the zoom limits, or panning past
  * the image edges, doesn't hard-stop — it stretches a little further
@@ -36,6 +38,8 @@ const TAP_MOVE_TOLERANCE = 10; // px — below this, a touch is a "tap" not a dr
 const DOUBLE_TAP_WINDOW = 300; // ms between taps to count as a double-tap
 const CLOSE_DRAG_THRESHOLD = 110; // px of downward drag that commits to closing
 const CLOSE_VELOCITY_THRESHOLD = 0.55; // px/ms flick speed that commits to closing
+const CAROUSEL_DRAG_THRESHOLD = 60; // px of horizontal drag to switch images
+const CAROUSEL_FLICK_THRESHOLD = 0.3; // px/ms flick speed to switch images
 
 function clamp(v, min, max) {
   return Math.min(max, Math.max(min, v));
@@ -55,7 +59,15 @@ function distance(t0, t1) {
   return Math.sqrt(dx * dx + dy * dy);
 }
 
-export default function ZoomOverlay({ displaySrc, zoomSrc, alt, onClose }) {
+export default function ZoomOverlay({
+  displaySrc,
+  zoomSrc,
+  alt,
+  onClose,
+  images = [],
+  imageIndex = 0,
+  onImageChange = () => {},
+}) {
   const [scale, setScale] = useState(1);
   const [tx, setTx] = useState(0);
   const [ty, setTy] = useState(0);
@@ -73,9 +85,12 @@ export default function ZoomOverlay({ displaySrc, zoomSrc, alt, onClose }) {
   const scaleRef = useRef(scale);
   const txRef = useRef(tx);
   const tyRef = useRef(ty);
-  scaleRef.current = scale;
-  txRef.current = tx;
-  tyRef.current = ty;
+
+  useEffect(() => {
+    scaleRef.current = scale;
+    txRef.current = tx;
+    tyRef.current = ty;
+  }, [scale, tx, ty]);
 
   const naturalSizeRef = useRef(null); // { w, h } of the actual photo
   const baseSizeRef = useRef(null); // rendered size at scale=1 (object-contain)
@@ -149,6 +164,28 @@ export default function ZoomOverlay({ displaySrc, zoomSrc, alt, onClose }) {
     setTimeout(closeNow, 180);
   }, [closeNow]);
 
+  // ── Android back button: push dummy history entry on mount, pop on close ──
+  // (Placed after dismissSimple definition to avoid hoisting issues)
+  useEffect(() => {
+    // Push a dummy state so hitting the back button fires popstate instead of
+    // navigating away from the page. The state object identifies this as a
+    // zoom overlay.
+    window.history.pushState({ zoomOverlayOpen: true }, "");
+
+    function onPopState(e) {
+      // User hit the back button. If the state is ours (zoomOverlayOpen),
+      // close the overlay and re-push so the next back goes to the actual
+      // previous page.
+      if (e.state?.zoomOverlayOpen) {
+        dismissSimple();
+        window.history.pushState({ zoomOverlayOpen: true }, "");
+      }
+    }
+
+    window.addEventListener("popstate", onPopState);
+    return () => window.removeEventListener("popstate", onPopState);
+  }, [dismissSimple]);
+
   const dismissWithFling = useCallback(
     (finalDy, velocity) => {
       setSpringBack(true);
@@ -161,10 +198,22 @@ export default function ZoomOverlay({ displaySrc, zoomSrc, alt, onClose }) {
     [closeNow],
   );
 
-  // ── Esc to close, resize handling ──
+  // ── Esc to close, arrow keys to navigate, resize handling ──
   useEffect(() => {
     function onKeyDown(e) {
       if (e.key === "Escape") dismissSimple();
+      if (e.key === "ArrowLeft" && scaleRef.current < 1.01) {
+        // Only allow carousel navigation when not zoomed in
+        // Loop: go to last image if at first
+        const prev = (imageIndex - 1 + images.length) % images.length;
+        onImageChange(prev);
+      }
+      if (e.key === "ArrowRight" && scaleRef.current < 1.01) {
+        // Only allow carousel navigation when not zoomed in
+        // Loop: go to first image if at last
+        const next = (imageIndex + 1) % images.length;
+        onImageChange(next);
+      }
     }
     function onResize() {
       recomputeBaseSize();
@@ -177,7 +226,13 @@ export default function ZoomOverlay({ displaySrc, zoomSrc, alt, onClose }) {
       window.removeEventListener("resize", onResize);
       window.removeEventListener("orientationchange", onResize);
     };
-  }, [dismissSimple, recomputeBaseSize]);
+  }, [
+    dismissSimple,
+    recomputeBaseSize,
+    imageIndex,
+    images.length,
+    onImageChange,
+  ]);
 
   const applyDoubleTap = useCallback(
     (clientX, clientY) => {
@@ -249,8 +304,7 @@ export default function ZoomOverlay({ displaySrc, zoomSrc, alt, onClose }) {
         const cy = rect.top + rect.height / 2;
         const midX = (t0.clientX + t1.clientX) / 2 - cx;
         const midY = (t0.clientY + t1.clientY) / 2 - cy;
-        const rawScale =
-          g.startScale * (distance(t0, t1) / g.startDistance);
+        const rawScale = g.startScale * (distance(t0, t1) / g.startDistance);
         const newScale = rubberband(rawScale, MIN_SCALE, MAX_SCALE);
         const b = getBounds(newScale);
         const newTx = rubberband(
@@ -291,13 +345,28 @@ export default function ZoomOverlay({ displaySrc, zoomSrc, alt, onClose }) {
           return; // still deciding
         }
         g.moved = true;
-        if (dy <= Math.abs(dx)) {
-          // Sideways or upward — not a dismiss gesture; ignore the rest
-          // of this touch (nothing else owns horizontal movement here).
+        // Decide: is this a horizontal (carousel) or vertical (dismiss) swipe?
+        if (Math.abs(dx) > Math.abs(dy)) {
+          // Horizontal swipe — carousel navigation
+          g.mode = "carousel-swipe";
+          g.startX = e.touches[0].clientX;
+          return;
+        } else if (dy > 0) {
+          // Vertical downward — dismiss gesture
+          g.mode = "close-drag";
+        } else {
+          // Vertical upward — ignore
           g.mode = "ignore";
           return;
         }
-        g.mode = "close-drag";
+      }
+
+      if (g.mode === "carousel-swipe") {
+        e.preventDefault();
+        const swipeX = e.touches[0].clientX - g.startX;
+        // Optionally animate a preview of the next/prev image...
+        // For now, we just track it; the actual navigation happens on touchend.
+        return;
       }
 
       if (g.mode === "close-drag") {
@@ -330,6 +399,21 @@ export default function ZoomOverlay({ displaySrc, zoomSrc, alt, onClose }) {
         setSpringBack(true);
         setTx(clamp(txRef.current, -b.maxX, b.maxX));
         setTy(clamp(tyRef.current, -b.maxY, b.maxY));
+      } else if (g.mode === "carousel-swipe") {
+        // User swiped left or right to navigate images
+        const touch = e.changedTouches[0];
+        const deltaX = touch.clientX - g.startX;
+        const duration = Math.max(1, Date.now() - g.startTime);
+        const velocity = Math.abs(deltaX) / duration;
+        const isFlick = velocity > CAROUSEL_FLICK_THRESHOLD;
+        const isDrag = Math.abs(deltaX) > CAROUSEL_DRAG_THRESHOLD;
+        if ((isFlick || isDrag) && Math.abs(deltaX) > 10) {
+          // Swiped far enough — navigate to next/prev image with looping
+          const direction = deltaX > 0 ? -1 : 1; // right swipe → prev, left swipe → next
+          const newIndex =
+            (imageIndex + direction + images.length) % images.length;
+          onImageChange(newIndex);
+        }
       } else if (g.mode === "close-drag") {
         const dy = tyRef.current;
         const duration = Math.max(1, Date.now() - g.startTime);
@@ -347,12 +431,19 @@ export default function ZoomOverlay({ displaySrc, zoomSrc, alt, onClose }) {
         const touch = e.changedTouches[0];
         const now = Date.now();
         const last = lastTapRef.current;
-        const tapDist = Math.hypot(touch.clientX - last.x, touch.clientY - last.y);
+        const tapDist = Math.hypot(
+          touch.clientX - last.x,
+          touch.clientY - last.y,
+        );
         if (now - last.time < DOUBLE_TAP_WINDOW && tapDist < 40) {
           applyDoubleTap(touch.clientX, touch.clientY);
           lastTapRef.current = { time: 0, x: 0, y: 0 };
         } else {
-          lastTapRef.current = { time: now, x: touch.clientX, y: touch.clientY };
+          lastTapRef.current = {
+            time: now,
+            x: touch.clientX,
+            y: touch.clientY,
+          };
           // Single tap on the image itself does nothing (matches the
           // "tap outside to close, tap image to inspect" convention).
         }
@@ -371,7 +462,14 @@ export default function ZoomOverlay({ displaySrc, zoomSrc, alt, onClose }) {
       el.removeEventListener("touchend", onTouchEnd);
       el.removeEventListener("touchcancel", onTouchEnd);
     };
-  }, [getBounds, applyDoubleTap, dismissWithFling]);
+  }, [
+    getBounds,
+    applyDoubleTap,
+    dismissWithFling,
+    imageIndex,
+    images.length,
+    onImageChange,
+  ]);
 
   // ── Desktop: scroll-to-zoom, anchored at the cursor ──
   useEffect(() => {
@@ -441,10 +539,43 @@ export default function ZoomOverlay({ displaySrc, zoomSrc, alt, onClose }) {
         <X size={18} strokeWidth={2.2} aria-hidden="true" />
       </button>
 
+      {/* Carousel navigation buttons — only visible when not zoomed and there are multiple images */}
+      {images.length > 1 && scale < 1.01 && (
+        <>
+          <button
+            type="button"
+            onClick={() => {
+              const prev = (imageIndex - 1 + images.length) % images.length;
+              onImageChange(prev);
+            }}
+            aria-label="Previous photo"
+            className="hidden lg:flex absolute left-4 top-1/2 -translate-y-1/2 z-10 w-10 h-10 rounded-full bg-black/45 backdrop-blur-sm items-center justify-center text-white active:scale-90 transition-transform duration-150 hover:bg-black/65"
+            style={{ opacity: backdropOpacity * 0.8 }}
+          >
+            <ChevronLeft size={18} strokeWidth={2.2} aria-hidden="true" />
+          </button>
+          <button
+            type="button"
+            onClick={() => {
+              const next = (imageIndex + 1) % images.length;
+              onImageChange(next);
+            }}
+            aria-label="Next photo"
+            className="hidden lg:flex absolute right-4 top-1/2 -translate-y-1/2 z-10 w-10 h-10 rounded-full bg-black/45 backdrop-blur-sm items-center justify-center text-white active:scale-90 transition-transform duration-150 hover:bg-black/65"
+            style={{ opacity: backdropOpacity * 0.8 }}
+          >
+            <ChevronRight size={18} strokeWidth={2.2} aria-hidden="true" />
+          </button>
+        </>
+      )}
+
       <div
         ref={containerRef}
         className="absolute inset-0 overflow-hidden select-none"
-        style={{ touchAction: "none", cursor: scale > 1.01 ? "grab" : "default" }}
+        style={{
+          touchAction: "none",
+          cursor: scale > 1.01 ? "grab" : "default",
+        }}
         onClick={handleClick}
         onDoubleClick={handleDoubleClick}
       >
@@ -463,6 +594,7 @@ export default function ZoomOverlay({ displaySrc, zoomSrc, alt, onClose }) {
           {/* Blurred instant placeholder — the display-tier image is
               already in the browser cache from the carousel, so this
               paints immediately with no network wait. */}
+          {/* eslint-disable-next-line @next/next/no-img-element */}
           <img
             src={displaySrc}
             alt=""
@@ -486,7 +618,10 @@ export default function ZoomOverlay({ displaySrc, zoomSrc, alt, onClose }) {
             alt={alt}
             draggable={false}
             className="absolute inset-0 w-full h-full object-contain"
-            style={{ opacity: zoomLoaded ? 1 : 0, transition: "opacity 0.25s ease" }}
+            style={{
+              opacity: zoomLoaded ? 1 : 0,
+              transition: "opacity 0.25s ease",
+            }}
             onLoad={(e) => {
               setZoomLoaded(true);
               handleImageMeta(e.target.naturalWidth, e.target.naturalHeight);

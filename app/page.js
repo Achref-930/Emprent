@@ -51,8 +51,8 @@ function Header({ cartCount, onCartClick }) {
               aria-hidden="true"
               style={{
                 animation: "badgePop 0.3s cubic-bezier(0.34,1.56,0.64,1) both",
-                background: "#FF3B30",
-                boxShadow: "0 0 0 2.5px #fff, 0 2px 6px rgba(255,59,48,0.55)",
+                background: "#b91c1c",
+                boxShadow: "0 0 0 2.5px #fff, 0 2px 6px rgba(185,28,28,0.55)",
               }}
               className="
                 absolute top-0 right-0

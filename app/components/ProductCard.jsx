@@ -1,7 +1,14 @@
 "use client";
 
 import { useState, useRef, useCallback, useEffect } from "react";
-import { Package, Check, Plus, ZoomIn, ChevronLeft, ChevronRight } from "lucide-react";
+import {
+  Package,
+  Check,
+  Plus,
+  ZoomIn,
+  ChevronLeft,
+  ChevronRight,
+} from "lucide-react";
 import Image from "next/image";
 import SizeSelector from "./SizeSelector";
 import ZoomOverlay from "./ZoomOverlay";
@@ -19,7 +26,11 @@ import {
 // gesture is a horizontal swipe (carousel) or a vertical one (page scroll).
 const AXIS_LOCK_THRESHOLD = 8;
 
-export default function ProductCard({ product, onAddToCart, isFirstProduct = false }) {
+export default function ProductCard({
+  product,
+  onAddToCart,
+  isFirstProduct = false,
+}) {
   const images = product.images?.length ? product.images : [null];
 
   const [imageIndex, setImageIndex] = useState(0);
@@ -39,7 +50,10 @@ export default function ProductCard({ product, onAddToCart, isFirstProduct = fal
   // touch listeners — attached once — always read fresh values without
   // needing to be re-attached on every render.
   const imageIndexRef = useRef(imageIndex);
-  imageIndexRef.current = imageIndex;
+
+  useEffect(() => {
+    imageIndexRef.current = imageIndex;
+  }, [imageIndex]);
 
   const snapToIndex = useCallback(
     (index) => {
@@ -120,7 +134,9 @@ export default function ProductCard({ product, onAddToCart, isFirstProduct = fal
       const isFlick = velocity > 0.3;
       const isDrag = Math.abs(delta) > width * 0.35;
       if ((isFlick || isDrag) && Math.abs(delta) > 10) {
-        snapToIndex(delta < 0 ? imageIndexRef.current + 1 : imageIndexRef.current - 1);
+        snapToIndex(
+          delta < 0 ? imageIndexRef.current + 1 : imageIndexRef.current - 1,
+        );
       }
     }
 
@@ -212,8 +228,11 @@ export default function ProductCard({ product, onAddToCart, isFirstProduct = fal
       {/* ── Image Carousel ── */}
       <div
         ref={trackRef}
-        className="w-full aspect-[3/4] max-w-lg mx-auto relative overflow-hidden select-none"
-        style={{ cursor: isDragging ? "grabbing" : "grab", touchAction: "pan-y" }}
+        className="w-full aspect-3/4 max-w-lg mx-auto relative overflow-hidden select-none"
+        style={{
+          cursor: isDragging ? "grabbing" : "grab",
+          touchAction: "pan-y",
+        }}
         onMouseDown={onMouseDown}
         onMouseMove={onMouseMove}
         onMouseUp={onMouseUp}
@@ -221,7 +240,7 @@ export default function ProductCard({ product, onAddToCart, isFirstProduct = fal
       >
         {/* Discount badge */}
         {hasDiscount && (
-          <div className="absolute top-3 left-3 z-10 bg-black text-white text-[11px] font-black tracking-[0.08em] uppercase px-2.5 py-1">
+          <div className="discountBadgeRed absolute top-3 left-3 z-10 text-white text-[11px] font-black tracking-[0.08em] uppercase px-2.5 py-1">
             -{pct}%
           </div>
         )}
@@ -372,6 +391,9 @@ export default function ProductCard({ product, onAddToCart, isFirstProduct = fal
           zoomSrc={images[imageIndex]}
           alt={`${product.name} — photo ${imageIndex + 1}`}
           onClose={() => setZoomOpen(false)}
+          images={images}
+          imageIndex={imageIndex}
+          onImageChange={snapToIndex}
         />
       )}
 
@@ -416,7 +438,7 @@ export default function ProductCard({ product, onAddToCart, isFirstProduct = fal
           disabled={soldOut}
           className={`
             w-full font-black text-[12px] tracking-[0.2em] uppercase
-            py-[18px]
+            py-4.5
             flex items-center justify-center gap-3
             border-2
             transition-all duration-200
@@ -452,15 +474,30 @@ export default function ProductCard({ product, onAddToCart, isFirstProduct = fal
             }}
             className="flex items-start gap-3 border border-black/10 bg-gray-50 rounded-sm px-4 py-3"
           >
-            <span className="mt-[1px] shrink-0 text-black">
+            <span className="mt-px shrink-0 text-black">
               {/* rotate arrow icon */}
-              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-                <path d="M9 15 3 9l6-6"/><path d="M3 9h13a5 5 0 0 1 0 10h-1"/>
+              <svg
+                width="14"
+                height="14"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2.2"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                aria-hidden="true"
+              >
+                <path d="M9 15 3 9l6-6" />
+                <path d="M3 9h13a5 5 0 0 1 0 10h-1" />
               </svg>
             </span>
             <p className="text-[11px] leading-[1.6] text-gray-600">
-              <span className="font-semibold text-black">Want another one?</span>{" "}
-              Pick a different size and tap <span className="font-semibold text-black">Add to Order</span> again.
+              <span className="font-semibold text-black">
+                Want another one?
+              </span>{" "}
+              Pick a different size and tap{" "}
+              <span className="font-semibold text-black">Add to Order</span>{" "}
+              again.
             </p>
           </div>
         )}

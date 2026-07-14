@@ -58,3 +58,7 @@ desktop.ini
 # TypeScript
 *.tsbuildinfo
 next-env.d.ts
+
+
+# graphify
+graphify-out/
