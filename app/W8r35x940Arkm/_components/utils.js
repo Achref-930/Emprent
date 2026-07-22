@@ -99,12 +99,13 @@ export function printOrdersToPDF(orders, filterLabel = "All") {
 
       const rowBg = idx % 2 === 0 ? "#ffffff" : "#f9fafb";
       const delivType = order.deliveryType === "domicile" ? "🏠 Domicile" : "📦 Bureau";
+      const address = order.address || order.homeAddress || order.commune || "";
       return `<tr style="background:${rowBg}">
         <td>${formatDateTime(order.createdAt)}</td>
         <td>${order.customerName}</td>
         <td>${order.phone}</td>
         <td>
-          <div>${order.wilaya}${order.commune ? ` / ${order.commune}` : ""}</div>
+          <div>${order.wilaya}${address ? ` / ${address}` : ""}</div>
           <div style="font-size:10px;color:#6b7280;margin-top:2px">${delivType}</div>
         </td>
         <td>${products}</td>

@@ -30,6 +30,8 @@ pnpm-debug.log*
 # Local notes / handoff docs
 /handoff.md
 /mongodb-srv-dns-issue.md
+*.md
+!/.README.md
 
 # Vercel
 .vercel
@@ -62,3 +64,4 @@ next-env.d.ts
 
 # graphify
 graphify-out/
+prd.md

@@ -30,6 +30,7 @@ import {
   X,
 } from "lucide-react";
 import { formatPrice } from "../../lib/products";
+import { getOrderAddress } from "../../lib/orderData.mjs";
 import ShippingSelector from "./ShippingSelector";
 
 const INPUT_BASE =
@@ -51,7 +52,6 @@ export default function CartDrawer({
   const [form, setForm] = useState({ name: "", phone: "" });
   const [shipping, setShipping] = useState({
     wilaya: "",
-    commune: "",
     deliveryType: null,
     fee: 0,
   });
@@ -107,7 +107,7 @@ export default function CartDrawer({
 
   const handleShippingChange = (info) => {
     setShipping(info);
-    if (info.wilaya && info.commune && info.deliveryType) {
+    if (info.wilaya && info.deliveryType) {
       setShippingError("");
     }
   };
@@ -124,10 +124,6 @@ export default function CartDrawer({
       setShippingError("Veuillez choisir une wilaya.");
       return;
     }
-    if (!shipping.commune) {
-      setShippingError("Veuillez choisir une commune.");
-      return;
-    }
 
     setStatus("loading");
     setErrorMsg("");
@@ -140,9 +136,9 @@ export default function CartDrawer({
           name: form.name,
           phone: form.phone,
           wilaya: shipping.wilaya,
-          commune: shipping.commune,
           deliveryType: shipping.deliveryType,
           shippingFee: shipping.fee,
+          address: shipping.homeAddress || "",
           items: cart.map(({ productId, name, size, price }) => ({
             productId,
             name,
@@ -171,8 +167,8 @@ export default function CartDrawer({
         shippingFee: shipping.fee,
         total,
         wilaya: shipping.wilaya,
-        commune: shipping.commune,
         deliveryType: shipping.deliveryType,
+        address: getOrderAddress({ address: shipping.homeAddress, homeAddress: shipping.homeAddress }),
       });
       setStatus("success");
       onOrderPlaced?.(); // clear the live cart — receipt no longer reads from it
@@ -214,7 +210,7 @@ export default function CartDrawer({
     setErrorMsg("");
     setOrderSnapshot(null);
     setForm({ name: "", phone: "" });
-    setShipping({ wilaya: "", commune: "", deliveryType: null, fee: 0 });
+    setShipping({ wilaya: "", deliveryType: null, fee: 0 });
     setShippingError("");
     onClose();
   }
@@ -238,7 +234,9 @@ export default function CartDrawer({
         aria-modal="true"
         aria-label="Cart and checkout"
         className="absolute top-0 right-0 h-full w-full sm:max-w-md bg-white shadow-2xl flex flex-col"
-        style={{ animation: "cartSlideIn 0.28s cubic-bezier(0.22,1,0.36,1) both" }}
+        style={{
+          animation: "cartSlideIn 0.28s cubic-bezier(0.22,1,0.36,1) both",
+        }}
       >
         {/* Header */}
         <div className="flex items-center justify-between px-5 h-[56px] border-b border-black shrink-0">
@@ -493,8 +491,7 @@ function FormStep({
             <strong className="text-black font-bold">
               Cash on Delivery only.
             </strong>{" "}
-            No card required. You pay when the courier hands you your
-            package.
+            No card required. You pay when the courier hands you your package.
           </p>
         </div>
 
@@ -555,7 +552,10 @@ function SuccessStep({
 
   return (
     <div>
-      <div ref={receiptRef} className="bg-black text-white px-6 py-8 text-center">
+      <div
+        ref={receiptRef}
+        className="bg-black text-white px-6 py-8 text-center"
+      >
         <span className="text-[16px] font-black tracking-[-0.04em] uppercase select-none">
           EMPRNTE
         </span>
@@ -573,17 +573,12 @@ function SuccessStep({
             </h2>
           </div>
           <p className="text-[13px] text-gray-200 leading-[1.7] mb-6">
-            Thank you, <strong className="text-white">{snapshot.name}</strong>
-            . Your order has been received. We will call{" "}
-            <strong className="text-white">{snapshot.phone}</strong> shortly
-            to confirm{" "}
-            {snapshot.deliveryType === "domicile"
-              ? "delivery to"
-              : "pickup in"}{" "}
-            <strong className="text-white">
-              {snapshot.commune}, {snapshot.wilaya}
-            </strong>
-            .
+            Thank you, <strong className="text-white">{snapshot.name}</strong>.
+            Your order has been received. We will call{" "}
+            <strong className="text-white">{snapshot.phone}</strong> shortly to
+            confirm{" "}
+            {snapshot.deliveryType === "domicile" ? "delivery to" : "pickup in"}{" "}
+            <strong className="text-white">{snapshot.wilaya}</strong>.
           </p>
         </div>
 
@@ -594,9 +589,7 @@ function SuccessStep({
               className="flex items-center justify-between px-4 py-3"
             >
               <div>
-                <p className="text-[12px] font-bold text-white">
-                  {item.name}
-                </p>
+                <p className="text-[12px] font-bold text-white">{item.name}</p>
                 <p className="text-[11px] text-gray-300 mt-0.5">
                   Size {item.size}
                 </p>

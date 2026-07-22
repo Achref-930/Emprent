@@ -1,6 +1,7 @@
 "use client";
 
 import { useRef, useState } from "react";
+import { getOrderAddress } from "../../../lib/orderData.mjs";
 import {
   formatDateTime,
   formatDA,
@@ -93,8 +94,8 @@ export default function OrderModal({ order, onClose }) {
           </div>
 
           <div className="flex items-center justify-between text-sm">
-            <span style={{ color: "#737373" }}>Commune</span>
-            <span className="font-medium">{order.commune || "—"}</span>
+            <span style={{ color: "#737373" }}>Address</span>
+            <span className="font-medium">{getOrderAddress(order) || "—"}</span>
           </div>
 
           <div className="flex items-center justify-between text-sm">

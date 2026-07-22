@@ -6,37 +6,7 @@
 import { NextResponse } from "next/server";
 import { connectDB } from "../../../lib/mongodb";
 import Order from "../../../lib/models/Order";
-
-function validateOrder({
-  name,
-  phone,
-  wilaya,
-  commune,
-  deliveryType,
-  shippingFee,
-}) {
-  const errors = [];
-
-  if (!name || name.trim().length < 2)
-    errors.push("Full name must be at least 2 characters.");
-
-  const phoneClean = phone?.replace(/\s/g, "");
-  if (!phoneClean || !/^(05|06|07)\d{8}$/.test(phoneClean))
-    errors.push("Please enter a valid Algerian phone number (05XX XXXXXXXX).");
-
-  if (!wilaya || wilaya.trim().length < 2) errors.push("Wilaya is required.");
-
-  if (!commune || commune.trim().length < 2)
-    errors.push("Commune is required.");
-
-  if (!["domicile", "desk"].includes(deliveryType))
-    errors.push("Delivery type must be domicile or desk.");
-
-  if (typeof shippingFee !== "number" || shippingFee < 0)
-    errors.push("Invalid shipping fee.");
-
-  return errors;
-}
+import { getOrderAddress, validateOrderPayload } from "../../../lib/orderData.mjs";
 
 export async function POST(request) {
   try {
@@ -45,22 +15,22 @@ export async function POST(request) {
       name,
       phone,
       wilaya,
-      commune,
       deliveryType,
       shippingFee,
+      address,
       items,
       subtotal,
       total,
     } = body;
 
     // ── Validate ───────────────────────────────────────────
-    const errors = validateOrder({
+    const errors = validateOrderPayload({
       name,
       phone,
       wilaya,
-      commune,
       deliveryType,
       shippingFee,
+      address,
     });
     if (errors.length > 0) {
       return NextResponse.json(
@@ -76,9 +46,9 @@ export async function POST(request) {
       customerName: name.trim(),
       phone: phone.trim(),
       wilaya: wilaya.trim(),
-      commune: commune.trim(),
       deliveryType,
       shippingFee,
+      address: getOrderAddress({ address }),
       products: (items || []).map((item) => ({
         productId: item.productId ?? "",
         name: item.name,

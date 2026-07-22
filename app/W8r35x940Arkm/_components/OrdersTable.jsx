@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { getOrderAddress } from "../../../lib/orderData.mjs";
 import {
   formatDateTime,
   formatDA,
@@ -67,7 +68,7 @@ function DesktopTable({ orders, onUpdateOrder, onExpand }) {
           <th className="px-4 py-3 font-medium whitespace-nowrap">Customer</th>
           <th className="px-4 py-3 font-medium whitespace-nowrap">Phone</th>
           <th className="px-4 py-3 font-medium whitespace-nowrap">Wilaya</th>
-          <th className="px-4 py-3 font-medium whitespace-nowrap">Commune</th>
+          <th className="px-4 py-3 font-medium whitespace-nowrap">Address</th>
           <th className="px-4 py-3 font-medium whitespace-nowrap">Products</th>
           <th className="px-4 py-3 font-medium whitespace-nowrap">Total</th>
           <th className="px-4 py-3 font-medium whitespace-nowrap">Status</th>
@@ -94,7 +95,7 @@ function DesktopTable({ orders, onUpdateOrder, onExpand }) {
             <td className="px-4 py-3">{order.wilaya}</td>
             <td className="px-4 py-3">
               <div className="flex flex-col">
-                <span>{order.commune}</span>
+                <span>{getOrderAddress(order) || "—"}</span>
                 <span className="text-[10px] text-gray-500 mt-0.5 font-medium uppercase tracking-wider">
                   {order.deliveryType === "domicile" ? "🏠 Domicile" : "📦 Bureau"}
                 </span>
@@ -193,7 +194,7 @@ function ExpandIcon() {
 // collapsed summary, alongside the existing expand button in the revealed content.
 function CompactRow({ order, isLast, onUpdateOrder, onExpand }) {
   const deliveryLabel = order.deliveryType ? `(${order.deliveryType === "domicile" ? "Domicile" : "Bureau"})` : "";
-  const locationLabel = `${[order.wilaya, order.commune].filter(Boolean).join(" / ")} ${deliveryLabel}`.trim();
+  const locationLabel = `${[order.wilaya, getOrderAddress(order)].filter(Boolean).join(" / ")} ${deliveryLabel}`.trim();
 
   return (
     <details className={`group ${isLast ? "" : "border-b border-gray-200"}`}>
