@@ -54,6 +54,7 @@ export default function CartDrawer({
     wilaya: "",
     deliveryType: null,
     fee: 0,
+    homeAddress: "",
   });
   const [shippingError, setShippingError] = useState("");
   const [status, setStatus] = useState("idle"); // idle | loading | success | error
@@ -106,15 +107,47 @@ export default function CartDrawer({
   };
 
   const handleShippingChange = (info) => {
-    setShipping(info);
+    setShipping((prev) => ({ ...prev, ...info }));
     if (info.wilaya && info.deliveryType) {
       setShippingError("");
     }
   };
 
+  const validateName = (name) => {
+    // Trim whitespace
+    const trimmed = name.trim();
+
+    // At least 3 characters
+    if (trimmed.length < 3) {
+      return "Name must be at least 3 characters.";
+    }
+
+    // At least 2 words (first and last name)
+    const words = trimmed.split(/\s+/);
+    if (words.length < 2) {
+      return "Please provide both first and last name.";
+    }
+
+    // Only letters, spaces, hyphens, and apostrophes
+    const nameRegex = /^[a-zA-ZÀ-ÿ\s\-']+$/;
+    if (!nameRegex.test(trimmed)) {
+      return "Name can only contain letters, spaces, hyphens, and apostrophes.";
+    }
+
+    return null; // Valid
+  };
+
   const handleSubmit = async (e) => {
     e.preventDefault();
     if (cartEmpty) return;
+
+    // Validate name
+    const nameError = validateName(form.name);
+    if (nameError) {
+      setErrorMsg(nameError);
+      setStatus("error");
+      return;
+    }
 
     if (!shipping.deliveryType) {
       setShippingError("Veuillez choisir un mode de livraison.");
@@ -122,6 +155,13 @@ export default function CartDrawer({
     }
     if (!shipping.wilaya) {
       setShippingError("Veuillez choisir une wilaya.");
+      return;
+    }
+
+    const normalizedAddress = getOrderAddress(shipping).trim();
+    if (shipping.deliveryType === "domicile" && !normalizedAddress) {
+      setErrorMsg("Please provide a home address for domicile delivery.");
+      setStatus("error");
       return;
     }
 
@@ -137,8 +177,9 @@ export default function CartDrawer({
           phone: form.phone,
           wilaya: shipping.wilaya,
           deliveryType: shipping.deliveryType,
+          homeAddress: normalizedAddress,
+          address: normalizedAddress,
           shippingFee: shipping.fee,
-          address: shipping.homeAddress || "",
           items: cart.map(({ productId, name, size, price }) => ({
             productId,
             name,
@@ -168,7 +209,7 @@ export default function CartDrawer({
         total,
         wilaya: shipping.wilaya,
         deliveryType: shipping.deliveryType,
-        address: getOrderAddress({ address: shipping.homeAddress, homeAddress: shipping.homeAddress }),
+        address: normalizedAddress,
       });
       setStatus("success");
       onOrderPlaced?.(); // clear the live cart — receipt no longer reads from it
@@ -431,6 +472,8 @@ function FormStep({
               required
               autoComplete="name"
               placeholder="Your full name"
+              pattern="[a-zA-ZÀ-ÿ\s\-']+"
+              title="Please enter a valid name (letters, spaces, hyphens, and apostrophes only)"
               value={form.name}
               onChange={onChange}
               className={`${INPUT_BASE} pl-10`}
@@ -550,6 +593,11 @@ function SuccessStep({
 }) {
   if (!snapshot) return null;
 
+  const locationText =
+    snapshot.deliveryType === "domicile" && snapshot.address
+      ? `${snapshot.wilaya}, ${snapshot.address}`
+      : snapshot.wilaya;
+
   return (
     <div>
       <div
@@ -578,7 +626,7 @@ function SuccessStep({
             <strong className="text-white">{snapshot.phone}</strong> shortly to
             confirm{" "}
             {snapshot.deliveryType === "domicile" ? "delivery to" : "pickup in"}{" "}
-            <strong className="text-white">{snapshot.wilaya}</strong>.
+            <strong className="text-white">{locationText}</strong>.
           </p>
         </div>
 
