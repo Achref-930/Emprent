@@ -3,8 +3,15 @@ import Order from '../lib/models/Order.js';
 
 async function main() {
   await connectDB();
-  const result = await Order.updateMany({}, { $unset: { commune: '' } });
-  console.log(`Removed commune from ${result.modifiedCount} order document(s).`);
+
+  const result = await Order.updateMany(
+    { commune: { $exists: true } },
+    { $unset: { commune: '' } },
+  );
+
+  console.log(
+    `Removed commune from ${result.modifiedCount} order document(s). Matched ${result.matchedCount}.`,
+  );
 }
 
 main().catch((err) => {
